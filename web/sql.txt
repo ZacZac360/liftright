@@ -1,0 +1,188 @@
+
+-- LiftRight Prototype DB (MySQL / MariaDB - XAMPP)
+
+CREATE DATABASE IF NOT EXISTS liftright_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE liftright_db;
+
+-- ---------------------------
+-- 1) Users (user/trainer/admin)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS users (
+  user_id INT AUTO_INCREMENT PRIMARY KEY,
+  full_name VARCHAR(120) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('user','trainer','admin') NOT NULL DEFAULT 'user',
+  age INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_users_email (email),
+  KEY idx_users_role (role)
+) ENGINE=InnoDB;
+
+-- ---------------------------
+-- 2) Training Sessions / Logs
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS training_logs (
+  log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  exercise_type ENUM('bicep_curl','shoulder_press','lateral_raise') NOT NULL,
+  source_type ENUM('upload','webcam') NOT NULL DEFAULT 'upload',
+
+  -- files (prototype-friendly)
+  video_path VARCHAR(255) NULL,
+  result_json_path VARCHAR(255) NULL,
+
+  -- summary results (what you show in UI)
+  reps_total INT NOT NULL DEFAULT 0,
+  reps_good INT NOT NULL DEFAULT 0,
+  reps_bad INT NOT NULL DEFAULT 0,
+  form_error_count INT NOT NULL DEFAULT 0,
+  fatigue_flag TINYINT(1) NOT NULL DEFAULT 0,
+
+  -- processing metrics (Objective 5: latency)
+  started_at TIMESTAMP NULL DEFAULT NULL,
+  finished_at TIMESTAMP NULL DEFAULT NULL,
+  processing_ms INT NULL DEFAULT NULL,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_logs_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  KEY idx_logs_user_date (user_id, created_at),
+  KEY idx_logs_exercise_date (exercise_type, created_at),
+  KEY idx_logs_fatigue (fatigue_flag)
+) ENGINE=InnoDB;
+
+-- ---------------------------
+-- 3) Per-Rep Metrics (for fatigue trends + detailed review)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS rep_metrics (
+  rep_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  log_id BIGINT NOT NULL,
+  rep_index INT NOT NULL,
+
+  -- core rep metrics (keep it simple; add more later)
+  duration_ms INT NULL,
+  rom_score FLOAT NULL,              -- e.g., normalized ROM [0..1] or degrees
+  trunk_sway FLOAT NULL,             -- your fatigue proxy feature
+  confidence_avg FLOAT NULL,         -- keypoint confidence average
+
+  -- classification
+  form_label ENUM('good','bad','unknown') NOT NULL DEFAULT 'unknown',
+  anomaly_score FLOAT NULL,          -- from OCSVM if you store it
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_rep_log
+    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  UNIQUE KEY uq_rep (log_id, rep_index),
+  KEY idx_rep_log (log_id)
+) ENGINE=InnoDB;
+
+-- ---------------------------
+-- 4) Feedback Messages (visual/text guidance you display)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS feedback (
+  feedback_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  log_id BIGINT NOT NULL,
+
+  -- type of feedback (posture, fatigue, info)
+  feedback_type ENUM('posture','fatigue','system','tip') NOT NULL DEFAULT 'posture',
+  severity ENUM('info','warning','danger') NOT NULL DEFAULT 'info',
+
+  feedback_text TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_feedback_log
+    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  KEY idx_feedback_log (log_id),
+  KEY idx_feedback_type (feedback_type)
+) ENGINE=InnoDB;
+
+-- ---------------------------
+-- 5) Error Thresholds (admin-tunable rules/limits)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS error_thresholds (
+  threshold_id INT AUTO_INCREMENT PRIMARY KEY,
+  exercise_type ENUM('bicep_curl','shoulder_press','lateral_raise') NOT NULL,
+  metric_key VARCHAR(80) NOT NULL,     -- e.g., "trunk_sway", "rom_score", "elbow_angle_min"
+  compare_op ENUM('>','>=','<','<=') NOT NULL DEFAULT '>',
+  metric_value FLOAT NOT NULL,         -- the threshold value
+  severity ENUM('info','warning','danger') NOT NULL DEFAULT 'warning',
+  enabled TINYINT(1) NOT NULL DEFAULT 1,
+  notes VARCHAR(255) NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uq_threshold (exercise_type, metric_key, compare_op),
+  KEY idx_threshold_exercise (exercise_type),
+  KEY idx_threshold_enabled (enabled)
+) ENGINE=InnoDB;
+
+-- seed a few default thresholds (tweak later)
+INSERT IGNORE INTO error_thresholds (exercise_type, metric_key, compare_op, metric_value, severity, enabled, notes)
+VALUES
+('bicep_curl',     'trunk_sway', '>', 0.25, 'warning', 1, 'Fatigue proxy: sway rising'),
+('shoulder_press', 'trunk_sway', '>', 0.30, 'warning', 1, 'Fatigue proxy: sway rising'),
+('lateral_raise',  'trunk_sway', '>', 0.28, 'warning', 1, 'Fatigue proxy: sway rising'),
+('bicep_curl',     'rom_score',  '<', 0.60, 'warning', 1, 'ROM degradation'),
+('shoulder_press', 'rom_score',  '<', 0.55, 'warning', 1, 'ROM degradation'),
+('lateral_raise',  'rom_score',  '<', 0.55, 'warning', 1, 'ROM degradation');
+
+-- ---------------------------
+-- 6) SUS Responses (Objective 5 usability)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS sus_responses (
+  sus_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+
+  q1 TINYINT NOT NULL, q2 TINYINT NOT NULL, q3 TINYINT NOT NULL, q4 TINYINT NOT NULL, q5 TINYINT NOT NULL,
+  q6 TINYINT NOT NULL, q7 TINYINT NOT NULL, q8 TINYINT NOT NULL, q9 TINYINT NOT NULL, q10 TINYINT NOT NULL,
+
+  sus_score FLOAT NULL,               -- store computed score for convenience
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_sus_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  KEY idx_sus_user_date (user_id, created_at)
+) ENGINE=InnoDB;
+
+-- ---------------------------
+-- 7) Expert Reviews (trainer/coach review for Objective 5)
+-- ---------------------------
+CREATE TABLE IF NOT EXISTS expert_reviews (
+  review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  log_id BIGINT NOT NULL,
+  trainer_id INT NOT NULL,
+
+  rating TINYINT NULL,               -- 1..5 (optional)
+  notes TEXT NULL,
+
+  -- optional: trainer can override counts
+  marked_good_reps INT NULL,
+  marked_bad_reps INT NULL,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_review_log
+    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  CONSTRAINT fk_review_trainer
+    FOREIGN KEY (trainer_id) REFERENCES users(user_id)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+
+  UNIQUE KEY uq_review_once (log_id, trainer_id),
+  KEY idx_reviews_log (log_id)
+) ENGINE=InnoDB;

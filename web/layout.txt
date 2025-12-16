@@ -1,0 +1,38 @@
+liftright/
+├── config/
+│   └── config.php           # DB credentials, base paths
+│
+├── includes/
+│   ├── head.php             # <head> tag with CSS
+│   ├── navbar.php           # top navigation (role-aware later)
+│   └── footer.php           # scripts
+│
+├── assets/
+│   ├── css/
+│   │   └── style.css        # whole UI theme
+│   │
+│   ├── js/
+│   │   ├── main.js          # general scripts
+│   │   ├── charts.js        # chart.js configs
+│   │   └── mock-data.js     # optional dummy JSON for progress report
+│   │
+│   └── data/
+│       ├── sessions.json        # mock session list
+│       └── session-detail.json  # mock detailed breakdown
+│
+├── trainee/
+│   ├── dashboard.php        # trainee dashboard
+│   ├── sessions.php         # list of sessions
+│   └── session-view.php     # detailed session page
+│
+├── coach/
+│   ├── dashboard.php
+│   └── trainees.php         # (optional for now)
+│
+├── admin/
+│   └── dashboard.php        # simple overview for now
+│
+├── login.php                # login screen
+├── logout.php
+├── register.php
+└── index.php                # landing or redirect
