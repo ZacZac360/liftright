@@ -209,16 +209,16 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-section-heading mb-0">Form consistency (last 10 sessions)</div>
           </div>
           <div class="lr-card-body">
-            <div class="border border-secondary rounded-3 p-3 text-center"
-                 style="height: 220px; display:flex; align-items:center; justify-content:center;">
-              <span class="lr-stat-subtext">
-                [Chart placeholder] charts.js will render Chart.js here (mock-data.js for now).
-              </span>
+            <div class="position-relative" style="height:220px;">
+            <canvas id="lrFormTrendChart"></canvas>
+            </div>
+            <div class="lr-stat-subtext mt-2">
+            Showing your last 10 sessions. Higher is better (good reps / total reps).
             </div>
           </div>
         </div>
 
-        <div class="lr-card h-100">
+        <div class="lr-card">
           <div class="lr-card-header">
             <div class="lr-section-title mb-1">Guidance</div>
             <div class="lr-section-heading mb-0">Key reminders for your next sessions</div>
@@ -237,5 +237,11 @@ require __DIR__ . '/../includes/head.php';
 
   </div>
 </div>
+
+<script>
+  window.LR_DASHBOARD = {
+    trendUrl: "<?= $BASE_URL ?>/api/dashboard_trend.php"
+  };
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

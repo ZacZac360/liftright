@@ -16,7 +16,6 @@ function initials(string $name): string {
   <div class="container">
     <a class="navbar-brand d-flex flex-column" href="<?= $BASE_URL ?>/index.php">
       <span class="brand-accent">LiftRight</span>
-      <span class="brand-subtitle">Real-time posture + fatigue insights</span>
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#lrNav">
@@ -32,7 +31,9 @@ function initials(string $name): string {
           <?php if ($role === 'user'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/dashboard.php">Dashboard</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sessions.php">Sessions</a></li>
-          <?php elseif ($role === 'trainer'): ?>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sus.php">SUS</a></li> 
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/profile.php">Profile</a></li>         
+            <?php elseif ($role === 'trainer'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Coach</a></li>
           <?php elseif ($role === 'admin'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Admin</a></li>
