@@ -33,12 +33,20 @@ function initials(string $name): string {
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sessions.php">Sessions</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sus.php">SUS</a></li> 
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/profile.php">Profile</a></li>         
-            <?php elseif ($role === 'trainer'): ?>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Coach</a></li>
-          <?php elseif ($role === 'admin'): ?>
+        <?php elseif ($role === 'trainer'): ?>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/reviews.php">Reviews</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/review-history.php">History</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/profile.php">Profile</a></li>
+
+        <?php elseif ($role === 'admin'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Admin</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/users.php">Users</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/thresholds.php">Thresholds</a></li>
-          <?php endif; ?>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/exports.php">Exports</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/evaluation.php">Evaluation</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/models.php">Models</a></li>
+        <?php endif; ?>
 
           <li class="nav-item d-flex align-items-center gap-2 ms-lg-3">
             <div class="avatar-circle"><?= h(initials((string)$full_name)) ?></div>
