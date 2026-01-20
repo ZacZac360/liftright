@@ -1,9 +1,9 @@
+# ml/scripts/02_build_reps_lateral_raise.py
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from collections import deque
 
-# ---------------- CONFIG ----------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 IN_CSV  = PROJECT_ROOT / "datasets" / "frames" / "all_exercises_frames.csv"
 OUT_CSV = PROJECT_ROOT / "datasets" / "reps" / "lateral_raise_reps.csv"
@@ -11,37 +11,58 @@ OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 
 SMOOTH_N = 7
 MIN_REP_FRAMES = 6
-MAX_REP_TIME = 6.0
+MAX_REP_TIME = 8.0     # match bicep/press "real thing" lenience
+MIN_CONF = 0.50
 
-# Baseline calibration: first ~1 sec
-BASELINE_FRAMES = 30
+# Robust baseline settings (match shoulder press philosophy, adapted for lateral raise)
+BASELINE_FRAMES = 400   # ~13 sec at ~30 fps
+BASELINE_PCT    = 25    # down-position tends to be the lower cluster
 
-# Lateral raise: wrists usually end up ~near shoulder height (wrist_rel_y around 0 to 0.3-ish)
-# We'll do adaptive thresholds relative to baseline.
-DOWN_OFFSET = 0.02     # down_thr = baseline + this
-UP_OFFSET   = 0.20     # up_thr   = down_thr + this  (tune 0.18-0.30 if needed)
+# Adaptive threshold offsets relative to baseline (down)
+DOWN_OFFSET = 0.02
+UP_OFFSET   = 0.25      # lateral raise: tune 0.22–0.30 depending on your vids
 
 ARMS = ["R", "L"]
 
+def safe_div(a, b, eps=1e-6):
+    return float(a / (b + eps))
+
+def compute_baseline(df_vid, wrist_col):
+    """
+    Baseline intended to represent the DOWN position of lateral raise (arms down).
+    We use early frames + confidence filter + percentile to avoid start noise.
+    Note: wrist_rel_y can be negative if wrist is below shoulder (common for arms-down).
+    """
+    first = df_vid.head(BASELINE_FRAMES).copy()
+    first = first[first["conf_mean"].astype(float) >= MIN_CONF]
+
+    s = first[wrist_col].astype(float).values
+    s = s[np.isfinite(s)]
+
+    if len(s) == 0:
+        return -0.10
+
+    return float(np.percentile(s, BASELINE_PCT))
+
 def detect_reps_one_arm(df_vid, arm: str):
     buf = deque(maxlen=SMOOTH_N)
+
     wrist_col = "R_wrist_rel_y" if arm == "R" else "L_wrist_rel_y"
+    elbow_col = "R_elbow_angle" if arm == "R" else "L_elbow_angle"
 
-    # ----- baseline from first second -----
-    first = df_vid.head(BASELINE_FRAMES)
-    base_vals = first[wrist_col].astype(float).values
-    base_vals = base_vals[np.isfinite(base_vals)]
-    baseline = float(np.median(base_vals)) if len(base_vals) else 0.05
-
-    down_thr = max(0.02, baseline + DOWN_OFFSET)
+    baseline = compute_baseline(df_vid, wrist_col)
+    down_thr = baseline + DOWN_OFFSET
     up_thr   = down_thr + UP_OFFSET
 
     state = "down"
     rep_id = 0
-    current = None
     reps = []
+    current = None  # created ONLY when rep starts (on UP)
 
     for _, r in df_vid.iterrows():
+        if float(r.get("conf_mean", 0.0)) < MIN_CONF:
+            continue
+
         y = float(r[wrist_col])
         if not np.isfinite(y):
             continue
@@ -49,57 +70,61 @@ def detect_reps_one_arm(df_vid, arm: str):
         buf.append(y)
         y_s = float(np.median(buf))
 
-        if current is None:
-            current = {"vals": [], "times": [], "trunk": [], "conf": [], "elbow": []}
-
-        current["vals"].append(y_s)
-        current["times"].append(float(r["time_sec"]))
-        current["trunk"].append(float(r["trunk_offset_norm"]))
-        current["conf"].append(float(r["conf_mean"]))
-
-        # elbow angle feature (helps catch “turning into upright row” / too much bend)
-        elbow_col = "R_elbow_angle" if arm == "R" else "L_elbow_angle"
-        current["elbow"].append(float(r[elbow_col]))
-
-        # Safety reset if stuck
-        if (current["times"][-1] - current["times"][0]) > MAX_REP_TIME:
-            current = None
-            state = "down"
-            buf.clear()
-            continue
-
+        # -------------------------
+        # Start rep ONLY when you actually go UP
+        # -------------------------
         if state == "down":
             if y_s >= up_thr:
                 state = "up"
-        else:  # up
+                current = {"vals": [], "times": [], "trunk": [], "elbow": []}
+                # include this frame as rep start
+                current["vals"].append(y_s)
+                current["times"].append(float(r["time_sec"]))
+                current["trunk"].append(float(r["trunk_offset_norm"]))
+                current["elbow"].append(float(r[elbow_col]))
+            continue
+
+        # -------------------------
+        # Collect only while UP state is active
+        # -------------------------
+        if state == "up" and current is not None:
+            current["vals"].append(y_s)
+            current["times"].append(float(r["time_sec"]))
+            current["trunk"].append(float(r["trunk_offset_norm"]))
+            current["elbow"].append(float(r[elbow_col]))
+
+            # Safety reset if stuck
+            if (current["times"][-1] - current["times"][0]) > MAX_REP_TIME:
+                current = None
+                state = "down"
+                buf.clear()
+                continue
+
+            # End rep on return DOWN
             if y_s <= down_thr:
                 if len(current["vals"]) >= MIN_REP_FRAMES:
                     rep_id += 1
                     vals  = np.array(current["vals"], dtype=np.float32)
                     times = np.array(current["times"], dtype=np.float32)
                     trunk = np.array(current["trunk"], dtype=np.float32)
-                    conf  = np.array(current["conf"], dtype=np.float32)
                     elbow = np.array(current["elbow"], dtype=np.float32)
 
                     reps.append({
                         "arm": arm,
                         "rep_number": rep_id,
-                        "baseline": baseline,
-                        "down_thr": down_thr,
-                        "up_thr": up_thr,
+                        "baseline": float(baseline),
+                        "down_thr": float(down_thr),
+                        "up_thr": float(up_thr),
 
                         "min_wrist_rel_y": float(vals.min()),
                         "max_wrist_rel_y": float(vals.max()),
                         "wrist_rel_range": float(vals.max() - vals.min()),
                         "duration": float(times[-1] - times[0]),
 
-                        "trunk_mean": float(trunk.mean()),
-                        "trunk_absmax": float(np.max(np.abs(trunk))),
-                        "conf_mean": float(conf.mean()),
-                        "n_frames": int(len(vals)),
+                        "trunk_absmax": float(np.max(np.abs(trunk))) if len(trunk) else 0.0,
+                        "elbow_min": float(np.min(elbow)) if len(elbow) else 180.0,
 
-                        "elbow_mean": float(np.mean(elbow)),
-                        "elbow_min": float(np.min(elbow)),
+                        "n_frames": int(len(vals)),
                     })
 
                 current = None
@@ -108,6 +133,11 @@ def detect_reps_one_arm(df_vid, arm: str):
     return reps
 
 def pick_best_arm(repR, repL):
+    """
+    Match bicep/press philosophy: prioritize movement quality.
+    Primary: bigger wrist_rel_range (actual rep signal)
+    Tie-breakers: less trunk swing, higher elbow_min (less upright-row cheating)
+    """
     if repR is None and repL is None:
         return None
     if repR is None:
@@ -115,16 +145,25 @@ def pick_best_arm(repR, repL):
     if repL is None:
         return repR
 
-    # primary: confidence
-    if repR["conf_mean"] > repL["conf_mean"] + 1e-6:
+    # 1) bigger movement wins
+    if repR["wrist_rel_range"] > repL["wrist_rel_range"] + 1e-6:
         return repR
-    if repL["conf_mean"] > repR["conf_mean"] + 1e-6:
+    if repL["wrist_rel_range"] > repR["wrist_rel_range"] + 1e-6:
         return repL
 
-    # tie: bigger movement
-    if repR["wrist_rel_range"] >= repL["wrist_rel_range"]:
+    # 2) less trunk swing
+    if repR["trunk_absmax"] < repL["trunk_absmax"] - 1e-6:
         return repR
-    return repL
+    if repL["trunk_absmax"] < repR["trunk_absmax"] - 1e-6:
+        return repL
+
+    # 3) less elbow bend (higher elbow_min is better)
+    if repR["elbow_min"] > repL["elbow_min"] + 1e-6:
+        return repR
+    if repL["elbow_min"] > repR["elbow_min"] + 1e-6:
+        return repL
+
+    return repR  # stable default
 
 def main():
     df = pd.read_csv(IN_CSV)
@@ -134,15 +173,13 @@ def main():
     out_rows = []
 
     for vid, df_vid in df.groupby("video_id"):
-        print("Processing video:", vid)
-
-        rlist = detect_reps_one_arm(df_vid, "R")
-        llist = detect_reps_one_arm(df_vid, "L")
-        max_reps = max(len(rlist), len(llist))
+        repsR = detect_reps_one_arm(df_vid, "R")
+        repsL = detect_reps_one_arm(df_vid, "L")
+        max_reps = max(len(repsR), len(repsL))
 
         for i in range(max_reps):
-            repR = rlist[i] if i < len(rlist) else None
-            repL = llist[i] if i < len(llist) else None
+            repR = repsR[i] if i < len(repsR) else None
+            repL = repsL[i] if i < len(repsL) else None
             best = pick_best_arm(repR, repL)
             if best is None:
                 continue
@@ -152,14 +189,12 @@ def main():
             out_rows.append(best)
 
     if not out_rows:
-        print("No reps detected. Try raising UP_OFFSET (e.g., 0.25) or lowering DOWN_OFFSET.")
+        print("No reps detected. Tune UP_OFFSET (0.22–0.30) or BASELINE_PCT.")
         return
 
     rep_df = pd.DataFrame(out_rows)
     rep_df.to_csv(OUT_CSV, index=False)
-
-    print("\nSaved:", OUT_CSV)
-    print("Total reps (best-arm):", len(rep_df))
+    print("Saved:", OUT_CSV, "| reps:", len(rep_df))
     print(rep_df.head())
 
 if __name__ == "__main__":
