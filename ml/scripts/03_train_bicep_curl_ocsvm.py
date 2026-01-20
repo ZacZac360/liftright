@@ -1,60 +1,49 @@
+# ml/scripts/03_train_bicep_curl_ocsvm.py
 import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 from sklearn.svm import OneClassSVM
 
-# ---------------- CONFIG ----------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 IN_CSV  = PROJECT_ROOT / "datasets" / "reps" / "bicep_curl_reps.csv"
 OUT_PKL = PROJECT_ROOT / "models" / "bicep_curl_ocsvm.pkl"
 OUT_PKL.parent.mkdir(parents=True, exist_ok=True)
 
-# Drop abnormal long reps (warm-up / pauses)
-MAX_REP_DURATION = 8.0  # seconds
+MAX_REP_DURATION = 8.0
 
-# Features used by the model
 FEATURES = [
     "rom",
     "duration",
     "trunk_absmax",
-    "min_angle",
+    "elbow_drift_absmax",
 ]
 
-# OCSVM parameters (tuned for small, clean dataset)
-NU = 0.10            # expected fraction of anomalies
-THRESH_PCT = 1       # stricter threshold percentile
+# "Real thing" = lenient model
+NU = 0.05
+THRESH_PCT = 10
 
-# ---------------- MAIN ----------------
 def main():
     df = pd.read_csv(IN_CSV)
-
     print("Initial reps:", len(df))
 
-    # Basic filtering
     df = df[df["duration"] <= MAX_REP_DURATION].copy()
     df = df.dropna(subset=FEATURES)
 
-    # ---- IMPORTANT FIX ----
-    # Clip extreme trunk sway so it doesn't dominate the kernel space
-    df["trunk_absmax"] = df["trunk_absmax"].clip(upper=0.3)
+    # clip extremes so one weird rep doesn't dominate the kernel
+    df["trunk_absmax"] = df["trunk_absmax"].clip(upper=0.45)
+    df["elbow_drift_absmax"] = df["elbow_drift_absmax"].clip(upper=0.50)
 
     print("Reps after duration + clipping:", len(df))
-
-    if len(df) < 10:
-        raise RuntimeError("Not enough reps to train a stable model.")
+    if len(df) < 12:
+        raise RuntimeError("Not enough reps to train a stable model (need >= 12).")
 
     X = df[FEATURES].values
-
-    scaler = StandardScaler()
+    scaler = RobustScaler()
     Xs = scaler.fit_transform(X)
 
-    model = OneClassSVM(
-        kernel="rbf",
-        gamma="scale",
-        nu=NU
-    )
+    model = OneClassSVM(kernel="rbf", gamma="scale", nu=NU)
     model.fit(Xs)
 
     scores = model.decision_function(Xs).ravel()
@@ -74,11 +63,8 @@ def main():
     joblib.dump(bundle, OUT_PKL)
 
     print("\nModel trained successfully.")
-    print("Score stats:")
-    print(" min :", float(scores.min()))
-    print(" mean:", float(scores.mean()))
-    print(" max :", float(scores.max()))
-    print(" threshold:", threshold)
+    print("Score stats: min/mean/max =", float(scores.min()), float(scores.mean()), float(scores.max()))
+    print("threshold:", threshold)
     print("\nSaved model ->", OUT_PKL)
 
 if __name__ == "__main__":
