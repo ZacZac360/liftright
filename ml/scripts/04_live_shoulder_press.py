@@ -1,42 +1,100 @@
+# ml/scripts/04_live_shoulder_press.py
 import cv2
 import numpy as np
 import mediapipe as mp
 import joblib
 import time
+import random
+import json
 from collections import deque
 from pathlib import Path
 
-# ---------------- CONFIG ----------------
+# ---------------- PATHS ----------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PKL = PROJECT_ROOT / "models" / "shoulder_press_ocsvm.pkl"
 
-CAM_INDEX = 0
-MIN_CONF = 0.5
+OUT_DIR = PROJECT_ROOT / "outputs"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+STATUS_JSON = OUT_DIR / "shoulder_press_status.json"
 
-# smoothing + debounce
+# ---------------- CAMERA ----------------
+CAM_INDEX = 0
+MIN_CONF = 0.50
+
+# ---------------- REP DETECTION (KEEP OLD MVP BEHAVIOR) ----------------
 SMOOTH_N = 7
 MIN_REP_TIME = 0.35
+MAX_REP_TIME = 8.0  # make it match your "real thing" lenience
 
-# adaptive thresholding (per session)
-BASELINE_FRAMES = 30      # ~1 sec
-DOWN_OFFSET = 0.02        # baseline + offset
-UP_OFFSET = 0.25          # down_thr + offset
+BASELINE_FRAMES = 30      # ~1 sec (old behavior)
+UP_OFFSET = 0.25          # old behavior (down_thr + offset)
 
-# safety reset if we get stuck
-MAX_REP_TIME = 6.0
+MIN_REP_FRAMES = 6
 
-# continuous feedback thresholds (heuristics)
-TRUNK_BAD = 0.12          # leaning/swinging
-ASYM_BAD  = 0.25          # L/R wrist height mismatch (normalized)
+# ---------------- COACHING THRESHOLDS ----------------
+TRUNK_WARN = 0.13
+TRUNK_BAD  = 0.22
 
+ASYM_WARN  = 0.22
+ASYM_BAD   = 0.34
+
+WARN_STREAK = 6   # ~0.2 sec at 30fps
+BAD_STREAK  = 4   # faster escalation for true bad form
+
+# Wrist stacked over elbow (2D proxy)
+STACK_WARN = 0.25
+STACK_BAD  = 0.38
+
+# ---------------- FATIGUE / PERSONALIZATION ----------------
+CALIB_REPS = 5
+FATIGUE_WINDOW = 6
+
+# Keep these (bicep-like feel suggested: margin smaller, streak shorter)
+ML_MARGIN = 0.050
+ML_LOW_STREAK_FOR_TIP = 4
+
+# ✅ FIX: rolling ML baseline so "Consistency drifting" clears once YOU recover
+ML_SCORE_WINDOW = 8        # compare against this many recent reps
+ML_REL_DROP = 0.020        # sensitivity: bigger = less warnings (0.02–0.03 is typical)
+ML_MIN_SCORES_FOR_REL = 4  # wait until we have enough history for relative baseline
+
+FATIGUE_WARN_INDEX = 55
+FATIGUE_STOP_INDEX = 80
+FATIGUE_STOP_STREAK = 2
+
+# ---------------- UI COLORS ----------------
 GOOD_COLOR = (0, 255, 0)
 WARN_COLOR = (0, 255, 255)
 BAD_COLOR  = (0, 0, 255)
 TEXT_COLOR = (240, 240, 240)
+NEUTRAL_COLOR = (160, 160, 160)
+
+PRAISE_LINES = [
+    "Clean rep - controlled.",
+    "Solid rep - keep it steady.",
+    "Nice rep - good control.",
+    "Smooth rep.",
+    "Good rep - consistent tempo.",
+]
+GENERAL_TIPS = [
+    "Brace your core before pressing.",
+    "Keep wrists stacked over elbows.",
+    "Control the way down (eccentric).",
+    "Keep ribs down; avoid over-arching.",
+    "Press evenly with both arms.",
+]
 
 # ---------------- MEDIAPIPE ----------------
 mp_pose = mp.solutions.pose
 mp_draw = mp.solutions.drawing_utils
+
+def write_status(payload):
+    try:
+        payload = dict(payload)
+        payload["timestamp"] = time.time()
+        STATUS_JSON.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 def lm_xyv(landmarks, idx, w, h):
     lm = landmarks[idx]
@@ -45,11 +103,68 @@ def lm_xyv(landmarks, idx, w, h):
 def safe_div(a, b, eps=1e-6):
     return float(a / (b + eps))
 
+def median_or(x, fallback):
+    x = [v for v in x if np.isfinite(v)]
+    return float(np.median(x)) if len(x) else float(fallback)
+
+def draw_skeleton_neutral(frame, pose_landmarks):
+    if pose_landmarks is None:
+        return
+    spec = mp_draw.DrawingSpec(color=NEUTRAL_COLOR, thickness=2, circle_radius=2)
+    mp_draw.draw_landmarks(
+        frame, pose_landmarks, mp_pose.POSE_CONNECTIONS,
+        landmark_drawing_spec=spec, connection_drawing_spec=spec
+    )
+
+def draw_segment(frame, pose_landmarks, a, b, color, thickness=6):
+    if pose_landmarks is None:
+        return
+    lm = pose_landmarks.landmark
+    h, w = frame.shape[:2]
+    ax, ay = int(lm[a].x * w), int(lm[a].y * h)
+    bx, by = int(lm[b].x * w), int(lm[b].y * h)
+    cv2.line(frame, (ax, ay), (bx, by), color, thickness)
+
+def highlight_issues(frame, pose_landmarks, right_stack_level, left_stack_level, trunk_level, asym_level):
+    """
+    Levels: 0 none, 1 warn, 2 bad
+    Highlight only problematic parts:
+      - arms if stack issue
+      - trunk line if trunk issue
+      - shoulder->wrist if asym issue
+    """
+    if pose_landmarks is None:
+        return
+
+    if right_stack_level > 0:
+        c = WARN_COLOR if right_stack_level == 1 else BAD_COLOR
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_ELBOW, c)
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST, c)
+
+    if left_stack_level > 0:
+        c = WARN_COLOR if left_stack_level == 1 else BAD_COLOR
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_ELBOW, c)
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.LEFT_ELBOW, mp_pose.PoseLandmark.LEFT_WRIST, c)
+
+    if trunk_level > 0:
+        c = WARN_COLOR if trunk_level == 1 else BAD_COLOR
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_HIP, c, thickness=5)
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_HIP, c, thickness=5)
+
+    if asym_level > 0:
+        c = WARN_COLOR if asym_level == 1 else BAD_COLOR
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_WRIST, c, thickness=4)
+        draw_segment(frame, pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_WRIST, c, thickness=4)
+
 class PressRepCounter:
     """
-    Shoulder press rep counter based on wrist relative height (wrist_rel_y).
-    - Learns baseline from first second of frames.
-    - Counts rep after: down -> up -> down.
+    Based on your old MVP:
+      - baseline from first ~1 sec
+      - count rep after down -> up -> down
+    Upgrades:
+      - per-rep memory of tips/bads
+      - stores per-rep arrays for range/trunk/stack
+      - optional arm lock: pick rep-arm at rep start, keep until rep ends
     """
     def __init__(self):
         self.buf = deque(maxlen=SMOOTH_N)
@@ -60,8 +175,10 @@ class PressRepCounter:
         self.baseline_samples = []
         self.baseline_ready = False
         self.baseline = 0.10
-        self.down_thr = 0.10
+        self.down_thr = 0.15
         self.up_thr = 0.45
+
+        self.rep_arm = None  # "R" or "L", locked during rep
 
         self.reset_rep(time.time())
 
@@ -69,7 +186,14 @@ class PressRepCounter:
         self.rep_start_t = t
         self.vals = []
         self.trunk = []
-        self.max_wrist_rel_y = -999.0
+        self.stack = []
+
+        self.rep_tip_seen = False
+        self.rep_bad_seen = False
+        self.rep_tip_reason = ""
+        self.rep_bad_reason = ""
+
+        self.rep_arm = None
 
     def update_baseline(self, wrist_rel_y):
         if self.baseline_ready:
@@ -80,29 +204,32 @@ class PressRepCounter:
             s = np.array(self.baseline_samples, dtype=np.float32)
             s = s[np.isfinite(s)]
 
-            # raw baseline
             base_med = float(np.median(s))
-
-            # "rack guess": median of the upper half of early samples
             s_sorted = np.sort(s)
             upper_half = s_sorted[len(s_sorted)//2:]
             rack_guess = float(np.median(upper_half)) if len(upper_half) else base_med
 
-            # If baseline is very low, assume we started arms-down and use rack_guess
             if base_med < 0.15 and rack_guess > base_med + 0.10:
                 baseline = rack_guess
             else:
                 baseline = base_med
 
             self.baseline = float(baseline)
-
-            # Down should be around rack, not arms-at-sides
-            self.down_thr = max(0.15, self.baseline - 0.05)   # rack return threshold
-            self.up_thr   = self.down_thr + UP_OFFSET
-
+            self.down_thr = max(0.15, self.baseline + 0.02)
+            self.up_thr = self.down_thr + UP_OFFSET
             self.baseline_ready = True
 
-    def update(self, wrist_rel_y, trunk_offset_norm):
+    def mark_feedback(self, bad_list, tip_list):
+        if bad_list:
+            self.rep_bad_seen = True
+            if not self.rep_bad_reason:
+                self.rep_bad_reason = str(bad_list[0])
+        if tip_list:
+            self.rep_tip_seen = True
+            if not self.rep_tip_reason:
+                self.rep_tip_reason = str(tip_list[0])
+
+    def update(self, wrist_rel_y, trunk_offset_norm, wrist_stack_norm, arm_label):
         now = time.time()
 
         # smooth wrist height
@@ -112,56 +239,122 @@ class PressRepCounter:
         # baseline calibration
         self.update_baseline(y_s)
 
-        # collect per-rep signals
-        self.vals.append(y_s)
-        self.trunk.append(float(trunk_offset_norm))
-        self.max_wrist_rel_y = max(self.max_wrist_rel_y, y_s)
-
-        # safety reset if stuck too long
+        # safety reset if stuck
         if (now - self.rep_start_t) > MAX_REP_TIME:
             self.state = "down"
             self.reset_rep(now)
             self.buf.clear()
             return y_s, False, None
 
-        rep_done = False
-        rep_summary = None
-
         # if baseline isn't ready yet, don't count reps
         if not self.baseline_ready:
             return y_s, False, None
 
+        rep_done = False
+        rep_summary = None
+
+        # lock arm once rep begins
         if self.state == "down":
             if y_s >= self.up_thr:
                 self.state = "up"
-        else:  # up
-            if y_s <= self.down_thr:
-                if (now - self.last_rep_t) >= MIN_REP_TIME and len(self.vals) >= 6:
-                    self.rep_count += 1
-                    self.last_rep_t = now
-                    rep_done = True
-
-                    vals = np.array(self.vals, dtype=np.float32)
-                    trunk = np.array(self.trunk, dtype=np.float32)
-
-                    rep_summary = {
-                        "rep": self.rep_count,
-                        "min_wrist_rel_y": float(vals.min()),
-                        "max_wrist_rel_y": float(vals.max()),
-                        "wrist_rel_range": float(vals.max() - vals.min()),
-                        "duration": float(now - self.rep_start_t),
-                        "trunk_absmax": float(np.max(np.abs(trunk))),
-                        "baseline": float(self.baseline),
-                        "down_thr": float(self.down_thr),
-                        "up_thr": float(self.up_thr),
-                    }
-
-                self.state = "down"
+                self.rep_arm = arm_label  # lock at rep start
                 self.reset_rep(now)
+                # store first frame of rep
+                self.vals.append(y_s)
+                self.trunk.append(float(trunk_offset_norm))
+                self.stack.append(float(wrist_stack_norm))
+            return y_s, False, None
+
+        # state == "up": collect only if matching locked arm
+        if self.rep_arm is None or arm_label == self.rep_arm:
+            self.vals.append(y_s)
+            self.trunk.append(float(trunk_offset_norm))
+            self.stack.append(float(wrist_stack_norm))
+
+        if y_s <= self.down_thr:
+            if (now - self.last_rep_t) >= MIN_REP_TIME and len(self.vals) >= MIN_REP_FRAMES:
+                self.rep_count += 1
+                self.last_rep_t = now
+                rep_done = True
+
+                vals = np.array(self.vals, dtype=np.float32)
+                trunk = np.array(self.trunk, dtype=np.float32)
+                stack = np.array(self.stack, dtype=np.float32)
+
+                rep_summary = {
+                    "rep": int(self.rep_count),
+                    "min_wrist_rel_y": float(vals.min()),
+                    "max_wrist_rel_y": float(vals.max()),
+                    "wrist_rel_range": float(vals.max() - vals.min()),
+                    "duration": float(now - self.rep_start_t),
+                    "trunk_absmax": float(np.max(np.abs(trunk))) if len(trunk) else 0.0,
+
+                    # IMPORTANT: keep key name consistent with your 03 FEATURES
+                    # We redefine "wrist_drift_absmax" to mean "wrist stack absmax"
+                    "wrist_drift_absmax": float(np.max(stack)) if len(stack) else 0.0,
+
+                    "baseline": float(self.baseline),
+                    "down_thr": float(self.down_thr),
+                    "up_thr": float(self.up_thr),
+                    "arm": str(self.rep_arm) if self.rep_arm else str(arm_label),
+
+                    "rep_tip_seen": bool(self.rep_tip_seen),
+                    "rep_bad_seen": bool(self.rep_bad_seen),
+                    "rep_tip_reason": str(self.rep_tip_reason),
+                    "rep_bad_reason": str(self.rep_bad_reason),
+                    "n_frames": int(len(vals)),
+                }
+
+            self.state = "down"
+            self.reset_rep(now)
 
         return y_s, rep_done, rep_summary
 
+def compute_fatigue_index(baseline, range_med, dur_med, stack_med):
+    """
+    Similar structure to bicep:
+      - range drop
+      - duration increase
+      - compensation increase (stack gets worse)
+    """
+    range_ratio = safe_div(range_med, baseline["range"])
+    dur_ratio = safe_div(dur_med, baseline["duration"])
+    stack_delta = stack_med - baseline["stack"]
+
+    c_range = np.clip((0.70 - range_ratio) / 0.70, 0.0, 1.0)
+    c_dur   = np.clip((dur_ratio - 1.25) / 1.25, 0.0, 1.0)
+    c_stack = np.clip(stack_delta / 0.20, 0.0, 1.0)
+
+    idx = (0.45 * c_range + 0.25 * c_dur + 0.30 * c_stack) * 100.0
+    comps = {
+        "range_ratio": float(range_ratio),
+        "dur_ratio": float(dur_ratio),
+        "stack_delta": float(stack_delta),
+        "c_range": float(c_range),
+        "c_dur": float(c_dur),
+        "c_stack": float(c_stack),
+    }
+    return float(idx), comps
+
+def top_set_issues(set_counts):
+    items = []
+    if set_counts["stack_bad_right"] + set_counts["stack_warn_right"] > 0:
+        items.append(("right wrist stack", set_counts["stack_bad_right"] + set_counts["stack_warn_right"]))
+    if set_counts["stack_bad_left"] + set_counts["stack_warn_left"] > 0:
+        items.append(("left wrist stack", set_counts["stack_bad_left"] + set_counts["stack_warn_left"]))
+    if set_counts["asym_bad"] + set_counts["asym_warn"] > 0:
+        items.append(("arm asymmetry", set_counts["asym_bad"] + set_counts["asym_warn"]))
+    if set_counts["trunk_bad"] + set_counts["trunk_warn"] > 0:
+        items.append(("trunk lean/arch", set_counts["trunk_bad"] + set_counts["trunk_warn"]))
+    if set_counts["low_conf"] > 0:
+        items.append(("tracking low", set_counts["low_conf"]))
+
+    items.sort(key=lambda x: x[1], reverse=True)
+    return items[:2]
+
 def main():
+    write_status({"state": "running", "message": "Shoulder press tracking active."})
+
     bundle = joblib.load(MODEL_PKL)
     scaler = bundle["scaler"]
     model  = bundle["model"]
@@ -175,11 +368,36 @@ def main():
     cap = cv2.VideoCapture(CAM_INDEX)
     if not cap.isOpened():
         print("Could not open webcam.")
+        write_status({"state": "error", "message": "Could not open webcam."})
         return
 
     rep_counter = PressRepCounter()
-    last_rep_text = "—"
+
+    set_counts = {
+        "stack_warn_right": 0, "stack_bad_right": 0,
+        "stack_warn_left": 0, "stack_bad_left": 0,
+        "asym_warn": 0, "asym_bad": 0,
+        "trunk_warn": 0, "trunk_bad": 0,
+        "low_conf": 0,
+    }
+
+    recent = deque(maxlen=FATIGUE_WINDOW)
+    calib_reps = []
+    baseline_ready = False
+    baseline = {"range": None, "duration": None, "stack": None}
+
+    ml_low_streak = 0
+    score_hist = deque(maxlen=ML_SCORE_WINDOW)  # ✅ rolling score baseline
+
+    fatigue_stop_streak = 0
+    fatigue_since_rep = None
+
+    last_rep_text = "-"
     last_rep_color = TEXT_COLOR
+    fatigue_text = ""
+    fatigue_color = TEXT_COLOR
+    fatigue_index = 0.0
+    rep_history = []
 
     with mp_pose.Pose(
         static_image_mode=False,
@@ -199,111 +417,326 @@ def main():
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             res = pose.process(rgb)
 
-            feedback = "No pose"
+            feedback = "Tracking..."
             fb_color = TEXT_COLOR
+
+            right_stack_level = 0
+            left_stack_level = 0
+            trunk_level = 0
+            asym_level = 0
 
             if res.pose_landmarks:
                 lm = res.pose_landmarks.landmark
 
                 LSH = lm_xyv(lm, mp_pose.PoseLandmark.LEFT_SHOULDER,  w, h)
                 RSH = lm_xyv(lm, mp_pose.PoseLandmark.RIGHT_SHOULDER, w, h)
+                LEL = lm_xyv(lm, mp_pose.PoseLandmark.LEFT_ELBOW,     w, h)
+                REL = lm_xyv(lm, mp_pose.PoseLandmark.RIGHT_ELBOW,    w, h)
                 LWR = lm_xyv(lm, mp_pose.PoseLandmark.LEFT_WRIST,     w, h)
                 RWR = lm_xyv(lm, mp_pose.PoseLandmark.RIGHT_WRIST,    w, h)
                 LHP = lm_xyv(lm, mp_pose.PoseLandmark.LEFT_HIP,       w, h)
                 RHP = lm_xyv(lm, mp_pose.PoseLandmark.RIGHT_HIP,      w, h)
 
-                conf_mean = float(np.mean([LSH[2], RSH[2], LWR[2], RWR[2], LHP[2], RHP[2]]))
+                conf_mean = float(np.mean([LSH[2], RSH[2], LEL[2], REL[2], LWR[2], RWR[2], LHP[2], RHP[2]]))
+
+                draw_skeleton_neutral(frame, res.pose_landmarks)
 
                 if conf_mean >= MIN_CONF:
                     shoulder_width = abs(LSH[0] - RSH[0])
                     if shoulder_width < 2:
                         shoulder_width = 2
 
-                    # trunk offset (lean/swing proxy)
+                    # trunk offset
                     mid_sh_x = (LSH[0] + RSH[0]) / 2.0
                     mid_hp_x = (LHP[0] + RHP[0]) / 2.0
                     trunk_offset_norm = safe_div((mid_sh_x - mid_hp_x), shoulder_width)
 
-                    # wrist relative heights (positive = wrist above shoulder)
-                    R_wrist_rel_y = safe_div((RSH[1] - RWR[1]), shoulder_width)
-                    L_wrist_rel_y = safe_div((LSH[1] - LWR[1]), shoulder_width)
+                    # wrist relative heights
+                    yR = safe_div((RSH[1] - RWR[1]), shoulder_width)
+                    yL = safe_div((LSH[1] - LWR[1]), shoulder_width)
 
-                    # choose arm by wrist visibility (simple per-frame)
+                    # wrist stacked over elbow (this replaces "wrist drifting")
+                    stackR = safe_div(abs(RWR[0] - REL[0]), shoulder_width)
+                    stackL = safe_div(abs(LWR[0] - LEL[0]), shoulder_width)
+
+                    # choose arm by wrist visibility (like old)
                     use_right = (RWR[2] >= LWR[2])
-                    wrist_rel_y = R_wrist_rel_y if use_right else L_wrist_rel_y
+                    arm_label = "R" if use_right else "L"
+                    wrist_rel_y = yR if use_right else yL
+                    wrist_stack = stackR if use_right else stackL
 
-                    # continuous feedback rules
-                    problems = []
+                    bad = []
+                    tips = []
+
+                    # trunk rules
                     if abs(trunk_offset_norm) > TRUNK_BAD:
-                        problems.append("Avoid leaning / back arch")
-                    if abs(R_wrist_rel_y - L_wrist_rel_y) > ASYM_BAD:
-                        problems.append("Keep arms even")
+                        trunk_level = 2
+                        set_counts["trunk_bad"] += 1
+                        bad.append("Avoid leaning / back arch")
+                    elif abs(trunk_offset_norm) > TRUNK_WARN:
+                        trunk_level = 1
+                        set_counts["trunk_warn"] += 1
+                        tips.append("Brace core; reduce lean")
 
-                    if not problems:
-                        feedback = "Good form (rules)"
-                        fb_color = GOOD_COLOR
-                    elif len(problems) == 1:
-                        feedback = problems[0]
+                    # asym rules
+                    asym = abs(yR - yL)
+                    if asym > ASYM_BAD:
+                        asym_level = 2
+                        set_counts["asym_bad"] += 1
+                        bad.append("Keep arms even")
+                    elif asym > ASYM_WARN:
+                        asym_level = 1
+                        set_counts["asym_warn"] += 1
+                        tips.append("Press more evenly")
+
+                    # stack rules per side (for highlights + stats)
+                    if stackR > STACK_BAD:
+                        right_stack_level = 2
+                        set_counts["stack_bad_right"] += 1
+                    elif stackR > STACK_WARN:
+                        right_stack_level = 1
+                        set_counts["stack_warn_right"] += 1
+
+                    if stackL > STACK_BAD:
+                        left_stack_level = 2
+                        set_counts["stack_bad_left"] += 1
+                    elif stackL > STACK_WARN:
+                        left_stack_level = 1
+                        set_counts["stack_warn_left"] += 1
+
+                    worst_stack = max(right_stack_level, left_stack_level)
+                    if worst_stack == 2:
+                        if right_stack_level == 2 and left_stack_level == 2:
+                            bad.append("Wrists not stacked (both)")
+                        elif right_stack_level == 2:
+                            bad.append("Wrist not stacked (right)")
+                        else:
+                            bad.append("Wrist not stacked (left)")
+                    elif worst_stack == 1:
+                        if right_stack_level == 1 and left_stack_level == 1:
+                            tips.append("Stack wrists over elbows (both)")
+                        elif right_stack_level == 1:
+                            tips.append("Stack wrist over elbow (right)")
+                        else:
+                            tips.append("Stack wrist over elbow (left)")
+
+                    highlight_issues(frame, res.pose_landmarks,
+                                     right_stack_level, left_stack_level,
+                                     trunk_level, asym_level)
+
+                    if bad:
+                        feedback = "UNSAFE: " + bad[0]
+                        fb_color = BAD_COLOR
+                    elif tips:
+                        feedback = "COACHING: " + tips[0]
                         fb_color = WARN_COLOR
                     else:
-                        feedback = problems[0] + " + " + problems[1]
-                        fb_color = BAD_COLOR
+                        feedback = "STATUS: Stable"
+                        fb_color = GOOD_COLOR
+
+                    # remember issues during rep
+                    if rep_counter.state == "up":
+                        rep_counter.mark_feedback(bad, tips)
 
                     # update rep counter
-                    y_s, rep_done, rep_sum = rep_counter.update(wrist_rel_y, trunk_offset_norm)
+                    y_s, rep_done, rep_sum = rep_counter.update(
+                        wrist_rel_y=wrist_rel_y,
+                        trunk_offset_norm=trunk_offset_norm,
+                        wrist_stack_norm=wrist_stack,
+                        arm_label=arm_label
+                    )
 
-                    # draw skeleton
-                    mp_draw.draw_landmarks(frame, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-                    # rep scoring (model)
+                    # rep complete => ML + fatigue + JSON
                     if rep_done and rep_sum:
-                        trunk_clip = min(rep_sum["trunk_absmax"], 0.3)
-
                         feat_map = {
                             "wrist_rel_range": rep_sum["wrist_rel_range"],
                             "duration": rep_sum["duration"],
-                            "trunk_absmax": trunk_clip,
-                            "max_wrist_rel_y": rep_sum["max_wrist_rel_y"],
+                            "trunk_absmax": min(rep_sum["trunk_absmax"], 0.55),
+                            "wrist_drift_absmax": min(rep_sum["wrist_drift_absmax"], 0.60),
                         }
+
+                        # safety: avoid KeyError if model bundle changed
+                        missing = [f for f in feats if f not in feat_map]
+                        if missing:
+                            print("Model expects missing features:", missing)
+                            continue
 
                         x = np.array([[feat_map[f] for f in feats]], dtype=np.float32)
                         xs = scaler.transform(x)
                         score = float(model.decision_function(xs)[0])
 
-                        if score >= thr:
-                            last_rep_text = f"Rep {rep_sum['rep']}: GOOD"
-                            last_rep_color = GOOD_COLOR
-                        else:
-                            last_rep_text = f"Rep {rep_sum['rep']}: POSSIBLE DEVIATION"
+                        recent.append({
+                            "range": rep_sum["wrist_rel_range"],
+                            "duration": rep_sum["duration"],
+                            "stack": min(rep_sum["wrist_drift_absmax"], 0.60),
+                            "score": score
+                        })
+
+                        # calibration baseline (good reps only)
+                        if (not baseline_ready) and (not rep_sum.get("rep_bad_seen", False)):
+                            calib_reps.append(recent[-1])
+                            if len(calib_reps) >= CALIB_REPS:
+                                baseline["range"] = median_or([r["range"] for r in calib_reps], 0.35)
+                                baseline["duration"] = median_or([r["duration"] for r in calib_reps], 1.6)
+                                baseline["stack"] = median_or([r["stack"] for r in calib_reps], 0.16)
+                                baseline_ready = True
+                                fatigue_text = ""
+                                fatigue_color = TEXT_COLOR
+
+                        # fatigue compute
+                        comps = {}
+                        fatigue_text = ""
+                        fatigue_color = TEXT_COLOR
+                        if baseline_ready and len(recent) >= 4:
+                            last3 = list(recent)[-3:]
+                            range_med = median_or([r["range"] for r in last3], baseline["range"])
+                            dur_med = median_or([r["duration"] for r in last3], baseline["duration"])
+                            stack_med = median_or([r["stack"] for r in last3], baseline["stack"])
+
+                            fatigue_index, comps = compute_fatigue_index(baseline, range_med, dur_med, stack_med)
+
+                            if fatigue_since_rep is None and fatigue_index >= FATIGUE_WARN_INDEX:
+                                fatigue_since_rep = rep_sum["rep"]
+
+                            if fatigue_index >= FATIGUE_WARN_INDEX:
+                                fatigue_text = f"FATIGUE WARNING: index {fatigue_index:.0f}/100"
+                                fatigue_color = WARN_COLOR
+
+                            if fatigue_index >= FATIGUE_STOP_INDEX:
+                                fatigue_stop_streak += 1
+                            else:
+                                fatigue_stop_streak = 0
+
+                            if fatigue_stop_streak >= FATIGUE_STOP_STREAK:
+                                since = fatigue_since_rep if fatigue_since_rep is not None else rep_sum["rep"]
+                                issues = top_set_issues(set_counts)
+                                issues_str = ", ".join([f"{n} x{c}" for n, c in issues]) if issues else "no dominant issue"
+                                msg = (
+                                    f"Stop recommended. Strong fatigue detected since Rep {since}. "
+                                    f"Top issues: {issues_str}. Please rest or reduce weight."
+                                )
+                                write_status({
+                                    "state": "stop",
+                                    "exercise": "shoulder_press",
+                                    "rep_now": int(rep_sum["rep"]),
+                                    "fatigue_index": float(fatigue_index),
+                                    "since_rep": int(since),
+                                    "message": msg,
+                                    "details": comps,
+                                    "set_summary": set_counts,
+                                    "top_issues": issues,
+                                })
+                                cap.release()
+                                cv2.destroyAllWindows()
+                                return
+
+                        # ---------------- ML softness (rolling baseline) ----------------
+                        score_hist.append(float(score))
+
+                        use_relative = (len(score_hist) >= ML_MIN_SCORES_FOR_REL)
+                        score_ref = float(np.median(score_hist)) if use_relative else float(thr)
+
+                        # Relative drop from your own recent typical score
+                        ml_low_rel = use_relative and (score < (score_ref - ML_REL_DROP))
+
+                        # Fallback (early reps): absolute threshold
+                        ml_low_abs = (score < (thr - ML_MARGIN))
+
+                        ml_low = ml_low_rel if use_relative else ml_low_abs
+
+                        ml_low_streak = ml_low_streak + 1 if ml_low else 0
+                        ml_tip = (ml_low_streak >= ML_LOW_STREAK_FOR_TIP)
+
+                        rep_tips = []
+                        if fatigue_text:
+                            rep_tips.append("Fatigue trend - consider rest or lighter weight")
+                        if baseline_ready and rep_sum["wrist_rel_range"] < 0.55 * baseline["range"]:
+                            rep_tips.append("Range dropping - lighten weight or rest")
+                        if baseline_ready and rep_sum["duration"] > 1.8 * baseline["duration"]:
+                            rep_tips.append("Tempo slowing - stay controlled")
+                        if ml_tip:
+                            rep_tips.append("Consistency drifting (ML)")
+
+                        rep_bad_reason = rep_sum.get("rep_bad_reason", "")
+                        rep_tip_reason = rep_sum.get("rep_tip_reason", "")
+                        rep_n = int(rep_sum["rep"])
+
+                        reasons = []
+                        if rep_sum.get("rep_bad_seen", False):
+                            reasons.append(rep_bad_reason or "unsafe form")
+                        if rep_sum.get("rep_tip_seen", False) and rep_tip_reason:
+                            reasons.append(rep_tip_reason)
+                        for t in rep_tips[:2]:
+                            reasons.append(t)
+
+                        if rep_sum.get("rep_bad_seen", False):
+                            last_rep_text = f"Rep {rep_n}: UNSAFE - {rep_bad_reason or 'adjust form'}"
                             last_rep_color = BAD_COLOR
+                        else:
+                            any_tip = rep_sum.get("rep_tip_seen", False) or ml_tip
+                            if any_tip:
+                                reason = rep_tip_reason if rep_tip_reason else (rep_tips[0] if rep_tips else "small adjustment")
+                                last_rep_text = f"Rep {rep_n}: COACHING - {reason}"
+                                last_rep_color = WARN_COLOR
+                            else:
+                                msg = random.choice(PRAISE_LINES)
+                                if random.random() < 0.40:
+                                    msg += " " + random.choice(GENERAL_TIPS)
+                                last_rep_text = f"Rep {rep_n}: {msg}"
+                                last_rep_color = GOOD_COLOR
 
-                        print(last_rep_text, "score=", score,
-                              "| baseline=", rep_sum["baseline"],
-                              "down=", rep_sum["down_thr"],
-                              "up=", rep_sum["up_thr"])
+                        rep_history.append({
+                            "rep": rep_n,
+                            "text": last_rep_text,
+                            "reasons": reasons[:4],
+                            "fatigue_index": float(fatigue_index),
+                            "score": float(score),
+                            "arm": rep_sum.get("arm", "?"),
+                        })
+                        rep_history = rep_history[-8:]
 
-                    # HUD
-                    base_txt = "Calibrating..." if not rep_counter.baseline_ready else f"down={rep_counter.down_thr:.2f} up={rep_counter.up_thr:.2f}"
-                    cv2.putText(frame, f"Reps: {rep_counter.rep_count}  State: {rep_counter.state}",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, TEXT_COLOR, 2)
-                    cv2.putText(frame, f"WristRel(smooth): {y_s:.2f}  {base_txt}",
-                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, TEXT_COLOR, 2)
-                    cv2.putText(frame, f"Conf: {conf_mean:.2f}",
-                                (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, TEXT_COLOR, 2)
+                        issues = top_set_issues(set_counts)
+                        issues_str = ", ".join([f"{n} x{c}" for n, c in issues]) if issues else "no major issues"
+
+                        write_status({
+                            "state": "running",
+                            "exercise": "shoulder_press",
+                            "rep_now": rep_n,
+                            "last_rep_text": last_rep_text,
+                            "last_rep_reasons": reasons[:4],
+                            "score": float(score),
+                            "threshold": float(thr),
+                            "fatigue_index": float(fatigue_index),
+                            "fatigue_warning": bool(fatigue_text),
+                            "message": "Active",
+                            "baseline_ready": bool(baseline_ready),
+                            "set_summary": set_counts,
+                            "set_top_issues": issues,
+                            "set_top_issues_text": issues_str,
+                            "recent_reps": rep_history[-5:],
+                            "fatigue_details": comps,
+                        })
 
                 else:
+                    set_counts["low_conf"] += 1
                     feedback = f"Low pose confidence ({conf_mean:.2f})"
                     fb_color = WARN_COLOR
 
-            # Feedback overlays
-            cv2.putText(frame, feedback, (10, h - 60),
+            # overlays
+            cv2.putText(frame, feedback, (10, h - 110),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, fb_color, 2)
-            cv2.putText(frame, last_rep_text, (10, h - 25),
+
+            if fatigue_text:
+                cv2.putText(frame, fatigue_text, (10, h - 75),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, fatigue_color, 2)
+
+            cv2.putText(frame, last_rep_text, (10, h - 35),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, last_rep_color, 2)
 
-            cv2.imshow("LiftRight - Shoulder Press (MVP)", frame)
+            cv2.imshow("LiftRight - Shoulder Press", frame)
             key = cv2.waitKey(1) & 0xFF
             if key == 27 or key == ord("q"):
+                write_status({"state": "stopped", "message": "User closed the tracker."})
                 break
 
     cap.release()
