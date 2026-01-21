@@ -20,7 +20,7 @@ function json_fail(string $msg, int $code = 400): void {
 }
 
 // where your Python realtime server runs
-define('PY_SERVER', 'http://127.0.0.1:5001');
+define('PY_SERVER', "http://127.0.0.1:5101");
 
 function http_post_json(string $url, array $payload): array {
   $ch = curl_init($url);
@@ -148,62 +148,85 @@ if ($action === 'finish') {
   $stmt->execute();
   $stmt->close();
 
-  // insert rep_metrics (if provided)
-  if (!empty($data['reps']) && is_array($data['reps'])) {
-    $stmt = $mysqli->prepare("
-      INSERT INTO rep_metrics
-      (log_id, rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        duration_ms=VALUES(duration_ms),
-        rom_score=VALUES(rom_score),
-        trunk_sway=VALUES(trunk_sway),
-        confidence_avg=VALUES(confidence_avg),
-        form_label=VALUES(form_label),
-        anomaly_score=VALUES(anomaly_score)
-    ");
+  // ... inside action === 'finish'
 
-    foreach ($data['reps'] as $r) {
-      $rep_index = (int)($r['rep_index'] ?? 0);
-      if ($rep_index <= 0) continue;
+    if (!empty($data['reps']) && is_array($data['reps'])) {
+      // (optional but recommended during dev)
+      // mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-      $duration = isset($r['duration_ms']) ? (int)$r['duration_ms'] : null;
-      $rom      = isset($r['rom_score']) ? (float)$r['rom_score'] : null;
-      $sway     = isset($r['trunk_sway']) ? (float)$r['trunk_sway'] : null;
-      $conf     = isset($r['confidence_avg']) ? (float)$r['confidence_avg'] : null;
-      $label    = (string)($r['form_label'] ?? 'unknown');
-      $score    = isset($r['anomaly_score']) ? (float)$r['anomaly_score'] : null;
+      $sql = "
+        INSERT INTO rep_metrics
+          (log_id, rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score, rep_meta)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          duration_ms=VALUES(duration_ms),
+          rom_score=VALUES(rom_score),
+          trunk_sway=VALUES(trunk_sway),
+          confidence_avg=VALUES(confidence_avg),
+          form_label=VALUES(form_label),
+          anomaly_score=VALUES(anomaly_score),
+          rep_meta=VALUES(rep_meta)
+      ";
 
-      // mysqli bind needs variables
-      $stmt->bind_param("iiidddsd",
-        $log_id, $rep_index,
-        $duration,
-        $rom, $sway, $conf,
-        $label,
-        $score
-      );
-      $stmt->execute();
+      $stmt = $mysqli->prepare($sql);
+      if (!$stmt) json_fail("rep_metrics prepare failed: " . $mysqli->error, 500);
+
+      foreach ($data['reps'] as $r) {
+        $rep_index = (int)($r['rep_index'] ?? 0);
+        if ($rep_index <= 0) continue;
+
+        $duration = (int)($r['duration_ms'] ?? 0);
+        $rom      = (float)($r['rom_score'] ?? 0.0);
+        $sway     = (float)($r['trunk_sway'] ?? 0.0);
+        $conf     = (float)($r['confidence_avg'] ?? 0.0);
+        $label    = (string)($r['form_label'] ?? 'unknown');
+        $score    = (float)($r['anomaly_score'] ?? 0.0);
+
+        $metaJson = "";
+        if (!empty($r['meta']) && is_array($r['meta'])) {
+          $metaJson = json_encode($r['meta'], JSON_UNESCAPED_SLASHES);
+        }
+
+        // 9 params: i i i d d d s d s
+        $ok = $stmt->bind_param(
+          "iiidddsds",
+          $log_id, $rep_index, $duration,
+          $rom, $sway, $conf,
+          $label,
+          $score,
+          $metaJson
+        );
+
+        if (!$ok) json_fail("rep_metrics bind_param failed: " . $stmt->error, 500);
+        if (!$stmt->execute()) json_fail("rep_metrics execute failed: " . $stmt->error, 500);
+      }
+
+      $stmt->close();
     }
-    $stmt->close();
-  }
-
-  // insert feedback (if provided)
-  if (!empty($data['feedback']) && is_array($data['feedback'])) {
+  
+    if (!empty($data['feedback']) && is_array($data['feedback'])) {
     $stmt = $mysqli->prepare("
-      INSERT INTO feedback (log_id, feedback_type, severity, feedback_text)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO feedback (log_id, feedback_type, severity, feedback_text, feedback_meta)
+      VALUES (?, ?, ?, ?, ?)
     ");
+
     foreach ($data['feedback'] as $f) {
       $type = (string)($f['feedback_type'] ?? 'posture');
       $sev  = (string)($f['severity'] ?? 'info');
       $txt  = (string)($f['feedback_text'] ?? '');
       if ($txt === '') continue;
 
-      $stmt->bind_param("isss", $log_id, $type, $sev, $txt);
-      $stmt->execute();
+      $metaJson = null;
+      if (!empty($f['meta']) && is_array($f['meta'])) {
+        $metaJson = json_encode($f['meta'], JSON_UNESCAPED_SLASHES);
+      }
+
+      $stmt->bind_param("issss", $log_id, $type, $sev, $txt, $metaJson);
+      if (!$stmt->execute()) json_fail("feedback execute failed: " . $stmt->error, 500);
     }
     $stmt->close();
   }
+
 
   echo json_encode(['success' => true, 'log_id' => $log_id]);
   exit;

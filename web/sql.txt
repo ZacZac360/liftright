@@ -186,3 +186,22 @@ CREATE TABLE IF NOT EXISTS expert_reviews (
   UNIQUE KEY uq_review_once (log_id, trainer_id),
   KEY idx_reviews_log (log_id)
 ) ENGINE=InnoDB;
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> use database liftright
+ERROR 1049 (42000): Unknown database 'database'
+mysql> use liftright_db
+Database changed
+mysql> ALTER TABLE rep_metrics
+    ->   ADD COLUMN rep_meta JSON NULL;
+Query OK, 0 rows affected (0.02 sec)
+Records: 0  Duplicates: 0  Warnings: 0
+
+mysql>
+mysql> ALTER TABLE feedback
+    ->   ADD COLUMN feedback_meta JSON NULL;
+Query OK, 0 rows affected (0.01 sec)
+Records: 0  Duplicates: 0  Warnings: 0
+
+mysql>

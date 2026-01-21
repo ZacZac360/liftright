@@ -54,11 +54,12 @@ $stmt->close();
 // Feedback
 $feedback = [];
 $stmt = $mysqli->prepare("
-  SELECT feedback_type, severity, feedback_text, created_at
+  SELECT feedback_type, severity, feedback_text, feedback_meta, created_at
   FROM feedback
   WHERE log_id = ?
   ORDER BY created_at ASC
 ");
+
 $stmt->bind_param("i", $log_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -232,7 +233,23 @@ require __DIR__ . '/../includes/head.php';
                 <?php foreach ($feedback as $f): ?>
                   <div class="p-3 rounded-3" style="border:1px solid var(--lr-border); background: rgba(15,23,42,0.65);">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                      <div class="lr-section-title mb-0 text-capitalize"><?= h((string)$f['feedback_type']) ?></div>
+                      <?php
+                        $repLabel = '';
+                        if (!empty($f['feedback_meta'])) {
+                          $meta = json_decode((string)$f['feedback_meta'], true);
+                          if (is_array($meta)) {
+                            // primary: rep
+                            if (isset($meta['rep'])) $repLabel = 'Rep ' . (int)$meta['rep'];
+                            // optional fallback if you ever store it differently
+                            elseif (isset($meta['rep_index'])) $repLabel = 'Rep ' . (int)$meta['rep_index'];
+                            elseif (isset($meta['since_rep'])) $repLabel = 'Since Rep ' . (int)$meta['since_rep']; // fatigue event
+                          }
+                        }
+
+                        $typeLabel = (string)($f['feedback_type'] ?? 'posture');
+                        $title = ($repLabel !== '' ? $repLabel . ' • ' : '') . $typeLabel;
+                      ?>
+                      <div class="lr-section-title mb-0 text-capitalize"><?= h($title) ?></div>
                       <span class="<?= h(severityBadge((string)$f['severity'])) ?>"><?= h((string)$f['severity']) ?></span>
                     </div>
                     <div><?= h((string)$f['feedback_text']) ?></div>
