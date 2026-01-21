@@ -602,12 +602,19 @@ class BicepCurlPipeline:
                         (len(rep_tips) > 0)
                     )
 
-                    if rep_bad:
-                        form_label = "bad"
-                    elif rep_warn:
-                        form_label = "warning"
-                    else:
-                        form_label = "good"
+                    # ---- Rep label rules (DB-safe) ----
+                    rep_bad = bool(rep_sum.get("rep_bad_seen", False))
+                    rep_warn = (not rep_bad) and (
+                        bool(rep_sum.get("rep_tip_seen", False)) or
+                        bool(ml_tip) or
+                        (len(rep_tips) > 0)
+                    )
+
+                    # DB stays binary: good/bad
+                    form_label_db = "bad" if rep_bad else "good"
+
+                    # UI-friendly label lives in meta (good/warning/bad)
+                    label_ui = "bad" if rep_bad else ("warning" if rep_warn else "good")
 
                     # "anomaly_score" in your DB schema can store the OCSVM decision_function
                     anomaly_score = float(score)
@@ -618,15 +625,18 @@ class BicepCurlPipeline:
                         "rom_score": float(rep_sum["rom"]),
                         "trunk_sway": 0.0,  # bicep curl uses elbow drift; trunk placeholder
                         "confidence_avg": float(rep_sum.get("confidence_avg", 0.0)),
-                        "form_label": form_label,
+                        "form_label": form_label_db,
                         "anomaly_score": anomaly_score,
                         "meta": {
+                            "label_ui": label_ui,           # <-- NEW (use this in your results table)
+                            "is_warning": bool(rep_warn),    # <-- NEW
                             "elbow_drift_absmax": float(drift_clip),
                             "rep_tip_seen": bool(rep_sum.get("rep_tip_seen", False)),
                             "rep_bad_seen": bool(rep_sum.get("rep_bad_seen", False)),
                             "reasons": reasons[:4],
                             "fatigue_index": float(sess.fatigue_index),
                         }
+
                     })
 
                     # feedback table rows (optional)
@@ -791,7 +801,7 @@ def finish(req: FinishReq):
 
     reps_total = len(sess.reps)
     reps_bad = sum(1 for r in sess.reps if (r.get("form_label") == "bad"))
-    reps_warn = sum(1 for r in sess.reps if (r.get("form_label") == "warning"))
+    reps_warn = sum(1 for r in sess.reps if bool((r.get("meta") or {}).get("is_warning")))
     # warnings count as "good" (not unsafe)
     reps_good = reps_total - reps_bad
 
