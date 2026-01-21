@@ -32,9 +32,14 @@ ELBOW_DRIFT_BAD  = 0.55
 CALIB_REPS = 5
 FATIGUE_WINDOW = 6
 
-# ML softness: prevent ML from overriding clean reps
+# ---------------- ML softness ----------------
 ML_MARGIN = 0.030
 ML_LOW_STREAK_FOR_TIP = 3
+
+# ✅ FIX: rolling ML baseline so "Consistency drifting" clears once YOU recover
+ML_SCORE_WINDOW = 8        # compare against this many recent reps
+ML_REL_DROP = 0.020        # sensitivity: bigger = less warnings (0.02–0.03 typical)
+ML_MIN_SCORES_FOR_REL = 4  # wait until we have enough history
 
 # Fatigue severity (0-100 index)
 FATIGUE_WARN_INDEX = 55     # show fatigue warning overlay
@@ -314,7 +319,10 @@ def main():
     }
     rep_history = []
 
+    # ML tracking
     ml_low_streak = 0
+    score_hist = deque(maxlen=ML_SCORE_WINDOW)  # ✅ rolling score baseline
+
     fatigue_stop_streak = 0
 
     last_rep_text = "-"
@@ -445,12 +453,8 @@ def main():
                         }
 
                         # Keep your current feature contract
-                        # If model expects trunk_absmax too, it must exist.
                         if "trunk_absmax" in feats:
-                            feat_map["trunk_absmax"] = 0.0  # neutral placeholder, since we removed trunk logic
-                        if "elbow_drift_absmax" not in feats:
-                            # should not happen, but keep safe
-                            pass
+                            feat_map["trunk_absmax"] = 0.0  # neutral placeholder
 
                         x = np.array([[feat_map[f] for f in feats]], dtype=np.float32)
                         xs = scaler.transform(x)
@@ -521,7 +525,20 @@ def main():
                                 cv2.destroyAllWindows()
                                 return
 
-                        ml_low = (score < (thr - ML_MARGIN))
+                        # ---------------- ML softness (rolling baseline) ----------------
+                        score_hist.append(float(score))
+
+                        use_relative = (len(score_hist) >= ML_MIN_SCORES_FOR_REL)
+                        score_ref = float(np.median(score_hist)) if use_relative else float(thr)
+
+                        # Relative drop from your own recent typical score
+                        ml_low_rel = use_relative and (score < (score_ref - ML_REL_DROP))
+
+                        # Fallback (early reps): absolute threshold
+                        ml_low_abs = (score < (thr - ML_MARGIN))
+
+                        ml_low = ml_low_rel if use_relative else ml_low_abs
+
                         ml_low_streak = ml_low_streak + 1 if ml_low else 0
                         ml_tip = (ml_low_streak >= ML_LOW_STREAK_FOR_TIP)
 
@@ -559,7 +576,7 @@ def main():
                             last_rep_text = f"Rep {rep_n}: UNSAFE - {rep_bad_reason or 'adjust form'}"
                             last_rep_color = BAD_COLOR
                         else:
-                            any_tip = rep_sum.get("rep_tip_seen", False) or bool(rep_tips)
+                            any_tip = rep_sum.get("rep_tip_seen", False) or ml_tip
                             if any_tip:
                                 reason = rep_tip_reason if rep_tip_reason else (rep_tips[0] if rep_tips else "small adjustment")
                                 last_rep_text = f"Rep {rep_n}: COACHING - {reason}"
@@ -576,6 +593,7 @@ def main():
                             "text": last_rep_text,
                             "reasons": reasons[:4],
                             "fatigue_index": float(fatigue_index),
+                            "score": float(score),
                         })
                         rep_history = rep_history[-8:]
 
@@ -588,9 +606,12 @@ def main():
                             "rep_now": rep_n,
                             "last_rep_text": last_rep_text,
                             "last_rep_reasons": reasons[:4],
+                            "score": float(score),
+                            "threshold": float(thr),
                             "fatigue_index": float(fatigue_index),
                             "fatigue_warning": bool(fatigue_text),
                             "message": "Active",
+                            "baseline_ready": bool(baseline_ready),
                             "set_summary": set_counts,
                             "set_top_issues": issues,
                             "set_top_issues_text": issues_str,
@@ -609,7 +630,6 @@ def main():
             if fatigue_text:
                 cv2.putText(frame, fatigue_text, (10, h - 75),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, fatigue_color, 2)
-
             cv2.putText(frame, last_rep_text, (10, h - 35),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, last_rep_color, 2)
 
