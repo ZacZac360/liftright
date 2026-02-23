@@ -1,0 +1,355 @@
+Microsoft Windows [Version 10.0.19045.6466]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\Zai>cd C:\xampp\htdocs\liftright
+
+C:\xampp\htdocs\liftright>dir /s
+ Volume in drive C is System
+ Volume Serial Number is 3E7B-6DED
+
+ Directory of C:\xampp\htdocs\liftright
+
+01/21/2026  11:19 AM    <DIR>          .
+01/21/2026  11:19 AM    <DIR>          ..
+01/20/2026  07:56 PM    <DIR>          ml
+10/22/2025  07:55 PM           935,738 Thesis Proper.pdf
+12/16/2025  11:26 PM    <DIR>          web
+               1 File(s)        935,738 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml
+
+01/20/2026  07:56 PM    <DIR>          .
+01/20/2026  07:56 PM    <DIR>          ..
+12/16/2025  09:54 PM    <DIR>          api
+12/16/2025  06:08 PM    <DIR>          datasets
+12/16/2025  08:31 PM    <DIR>          models
+01/21/2026  01:33 AM    <DIR>          outputs
+01/21/2026  11:17 AM    <DIR>          scripts
+12/16/2025  06:05 PM    <DIR>          thesis captures
+01/21/2026  01:26 AM    <DIR>          videos
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\api
+
+12/16/2025  09:54 PM    <DIR>          .
+12/16/2025  09:54 PM    <DIR>          ..
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\datasets
+
+12/16/2025  06:08 PM    <DIR>          .
+12/16/2025  06:08 PM    <DIR>          ..
+12/16/2025  06:19 PM    <DIR>          frames
+12/16/2025  08:30 PM    <DIR>          reps
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\datasets\frames
+
+12/16/2025  06:19 PM    <DIR>          .
+12/16/2025  06:19 PM    <DIR>          ..
+12/16/2025  06:19 PM         3,237,287 all_exercises_frames.csv
+               1 File(s)      3,237,287 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\datasets\reps
+
+12/16/2025  08:30 PM    <DIR>          .
+12/16/2025  08:30 PM    <DIR>          ..
+01/20/2026  06:57 PM             6,413 bicep_curl_reps.csv
+01/21/2026  01:23 AM             7,979 lateral_raise_reps.csv
+01/20/2026  11:55 PM             8,665 shoulder_press_reps.csv
+               3 File(s)         23,057 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\models
+
+12/16/2025  08:31 PM    <DIR>          .
+12/16/2025  08:31 PM    <DIR>          ..
+01/20/2026  06:57 PM             2,425 bicep_curl_ocsvm.pkl
+01/21/2026  01:23 AM             2,521 lateral_raise_ocsvm.pkl
+01/21/2026  12:55 AM             2,649 shoulder_press_ocsvm.pkl
+               3 File(s)          7,595 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\outputs
+
+01/21/2026  01:33 AM    <DIR>          .
+01/21/2026  01:33 AM    <DIR>          ..
+01/20/2026  10:15 PM               104 bicep_curl_status.json
+01/21/2026  02:09 AM               104 lateral_raise_status.json
+01/21/2026  01:04 AM               104 shoulder_press_status.json
+               3 File(s)            312 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\scripts
+
+01/21/2026  11:17 AM    <DIR>          .
+01/21/2026  11:17 AM    <DIR>          ..
+12/16/2025  06:09 PM             6,151 01_extract_frames.py
+01/20/2026  06:57 PM             5,008 02_build_reps_bicep_curl.py
+01/21/2026  01:23 AM             7,041 02_build_reps_lateral_raise.py
+01/20/2026  11:53 PM             7,112 02_build_reps_shoulder_press.py
+01/20/2026  06:57 PM             2,046 03_train_bicep_curl_ocsvm.py
+01/21/2026  01:23 AM             2,245 03_train_lateral_raise_ocsvm.py
+01/21/2026  12:55 AM             2,259 03_train_shoulder_press_ocsvm.py
+01/20/2026  10:24 PM            24,632 04_live_bicep_curl.py
+01/21/2026  02:05 AM            34,967 04_live_lateral_raise.py
+01/21/2026  01:04 AM            31,430 04_live_shoulder_press.py
+01/21/2026  11:16 AM            34,721 realtime_server.py
+01/21/2026  11:18 AM    <DIR>          server
+12/17/2025  12:23 AM    <DIR>          __pycache__
+              11 File(s)        157,612 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\scripts\server
+
+01/21/2026  11:18 AM    <DIR>          .
+01/21/2026  11:18 AM    <DIR>          ..
+01/21/2026  11:17 AM               534 run_realtime_server.bat
+               1 File(s)            534 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\scripts\__pycache__
+
+12/17/2025  12:23 AM    <DIR>          .
+12/17/2025  12:23 AM    <DIR>          ..
+12/17/2025  12:23 AM            17,183 realtime_server.cpython-310.pyc
+               1 File(s)         17,183 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures
+
+12/16/2025  06:05 PM    <DIR>          .
+12/16/2025  06:05 PM    <DIR>          ..
+12/16/2025  05:07 PM    <DIR>          RAW VIDS
+12/16/2025  06:03 PM    <DIR>          Sir Benj
+12/16/2025  05:07 PM    <DIR>          Sir Jack
+12/16/2025  05:07 PM    <DIR>          Sir Jay
+12/16/2025  05:07 PM    <DIR>          Sir Jeff
+12/16/2025  05:07 PM    <DIR>          Sir Renz
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\RAW VIDS
+
+12/16/2025  05:07 PM    <DIR>          .
+12/16/2025  05:07 PM    <DIR>          ..
+11/02/2025  03:38 AM        57,833,445 IMG_0188.MOV
+11/02/2025  03:36 AM        56,833,386 IMG_0189.MOV
+11/02/2025  03:43 AM        83,984,274 IMG_0190.MOV
+11/02/2025  03:41 AM        64,436,716 IMG_0219.MOV
+11/02/2025  03:32 AM        55,746,590 IMG_0220.MOV
+11/02/2025  03:31 AM        51,621,370 IMG_0221.MOV
+11/02/2025  01:41 AM         8,274,744 IMG_0226.MOV
+11/02/2025  03:29 AM        35,566,964 IMG_0227.MOV
+11/02/2025  03:25 AM        27,815,522 IMG_0228.MOV
+11/02/2025  03:24 AM        26,633,082 IMG_0229.MOV
+11/02/2025  03:29 AM        37,018,729 IMG_0230.MOV
+11/02/2025  03:08 AM        19,951,976 IMG_0231.MOV
+11/02/2025  03:23 AM        23,216,166 IMG_0232.MOV
+11/02/2025  03:27 AM        30,821,311 IMG_0233.MOV
+11/02/2025  03:08 AM        21,598,117 IMG_0234.MOV
+11/02/2025  03:26 AM        30,195,509 IMG_0235.MOV
+11/02/2025  03:28 AM        31,852,845 IMG_0236.MOV
+11/02/2025  03:24 AM        26,097,164 IMG_0237.MOV
+11/02/2025  03:09 AM        22,706,162 IMG_0238.MOV
+              19 File(s)    712,204,072 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\Sir Benj
+
+12/16/2025  06:03 PM    <DIR>          .
+12/16/2025  06:03 PM    <DIR>          ..
+11/17/2025  06:03 PM        83,984,274 benj_bicep.MP4
+11/17/2025  06:03 PM        56,833,386 benj_latraise.MP4
+11/17/2025  06:02 PM        57,833,445 benj_shoulderpress.MP4
+11/02/2025  05:53 AM         7,396,434 Sir Benj Gabriel De Jesus.m4a
+               4 File(s)    206,047,539 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\Sir Jack
+
+12/16/2025  05:07 PM    <DIR>          .
+12/16/2025  05:07 PM    <DIR>          ..
+11/02/2025  05:53 AM         4,993,846 Coach Jack.m4a
+11/17/2025  06:02 PM        31,852,845 jack_bicep.MP4
+11/17/2025  06:02 PM        22,706,162 jack_latraise.MP4
+11/17/2025  06:02 PM        26,097,164 jack_shoulderpress.MP4
+               4 File(s)     85,650,017 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\Sir Jay
+
+12/16/2025  05:07 PM    <DIR>          .
+12/16/2025  05:07 PM    <DIR>          ..
+11/02/2025  05:53 AM        21,392,519 Coach Jay SouthGrind.m4a
+11/17/2025  06:01 PM        30,195,509 jay_bicep.MP4
+11/17/2025  06:00 PM        21,598,117 jay_latraise.MP4
+11/17/2025  06:00 PM        30,821,311 jay_shoulderpress.MP4
+               4 File(s)    104,007,456 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\Sir Jeff
+
+12/16/2025  05:07 PM    <DIR>          .
+12/16/2025  05:07 PM    <DIR>          ..
+11/02/2025  05:53 AM         5,090,757 Coach Jeff.m4a
+11/17/2025  06:00 PM        23,216,166 jeff_bicep.MP4
+11/17/2025  06:00 PM        19,951,976 jeff_latraise.MP4
+11/17/2025  05:59 PM        37,018,729 jeff_shoulderpress.MP4
+               4 File(s)     85,277,628 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\thesis captures\Sir Renz
+
+12/16/2025  05:07 PM    <DIR>          .
+12/16/2025  05:07 PM    <DIR>          ..
+11/02/2025  05:53 AM         5,791,985 Coach Renz.m4a
+11/17/2025  05:58 PM        35,566,964 renz_bicep.MP4
+11/17/2025  05:59 PM        26,633,082 renz_latraise.MP4
+11/17/2025  05:59 PM        27,815,522 renz_shoulderpress.MP4
+               4 File(s)     95,807,553 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\videos
+
+01/21/2026  01:26 AM    <DIR>          .
+01/21/2026  01:26 AM    <DIR>          ..
+01/21/2026  01:26 AM    <DIR>          bicep_curl
+01/21/2026  01:26 AM    <DIR>          lateral_raise
+01/21/2026  01:26 AM    <DIR>          shoulder_press
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\videos\bicep_curl
+
+01/21/2026  01:26 AM    <DIR>          .
+01/21/2026  01:26 AM    <DIR>          ..
+11/17/2025  06:03 PM        83,984,274 benj_bicep.MP4
+11/17/2025  06:02 PM        31,852,845 jack_bicep.MP4
+11/17/2025  06:01 PM        30,195,509 jay_bicep.MP4
+11/17/2025  06:00 PM        23,216,166 jeff_bicep.MP4
+11/17/2025  05:58 PM        35,566,964 renz_bicep.MP4
+               5 File(s)    204,815,758 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\videos\lateral_raise
+
+01/21/2026  01:26 AM    <DIR>          .
+01/21/2026  01:26 AM    <DIR>          ..
+11/17/2025  06:03 PM        56,833,386 benj_latraise.MP4
+11/17/2025  06:02 PM        22,706,162 jack_latraise.MP4
+11/17/2025  06:00 PM        21,598,117 jay_latraise.MP4
+11/17/2025  06:00 PM        19,951,976 jeff_latraise.MP4
+11/17/2025  05:59 PM        26,633,082 renz_latraise.MP4
+               5 File(s)    147,722,723 bytes
+
+ Directory of C:\xampp\htdocs\liftright\ml\videos\shoulder_press
+
+01/21/2026  01:26 AM    <DIR>          .
+01/21/2026  01:26 AM    <DIR>          ..
+11/17/2025  06:02 PM        57,833,445 benj_shoulderpress.MP4
+11/17/2025  06:02 PM        26,097,164 jack_shoulderpress.MP4
+11/17/2025  06:00 PM        30,821,311 jay_shoulderpress.MP4
+11/17/2025  05:59 PM        37,018,729 jeff_shoulderpress.MP4
+11/17/2025  05:59 PM        27,815,522 renz_shoulderpress.MP4
+               5 File(s)    179,586,171 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web
+
+12/16/2025  11:26 PM    <DIR>          .
+12/16/2025  11:26 PM    <DIR>          ..
+12/17/2025  02:21 AM    <DIR>          admin
+12/17/2025  01:10 AM    <DIR>          api
+12/16/2025  11:12 PM    <DIR>          assets
+12/17/2025  01:58 AM    <DIR>          coach
+12/16/2025  11:13 PM    <DIR>          config
+12/16/2025  11:26 PM               101 hash.php
+12/16/2025  11:14 PM    <DIR>          includes
+12/16/2025  11:19 PM               546 index.php
+12/16/2025  11:16 PM             1,366 layout.txt
+12/16/2025  11:24 PM             2,745 login.php
+12/16/2025  11:15 PM               119 logout.php
+12/16/2025  11:14 PM             3,363 register.php
+12/16/2025  10:34 PM             7,015 sql.txt
+12/17/2025  01:05 AM    <DIR>          trainee
+               7 File(s)         15,255 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\admin
+
+12/17/2025  02:21 AM    <DIR>          .
+12/17/2025  02:21 AM    <DIR>          ..
+12/17/2025  02:09 AM             6,482 dashboard.php
+12/17/2025  02:20 AM            12,764 evaluation.php
+12/17/2025  02:21 AM            11,878 exports.php
+12/17/2025  02:21 AM             6,635 models.php
+12/17/2025  02:10 AM            13,776 thresholds.php
+12/17/2025  02:09 AM             7,106 users.php
+               6 File(s)         58,641 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\api
+
+12/17/2025  01:10 AM    <DIR>          .
+12/17/2025  01:10 AM    <DIR>          ..
+12/17/2025  01:13 AM             1,333 dashboard_trend.php
+01/21/2026  11:16 AM             8,893 session_process.php
+               2 File(s)         10,226 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\assets
+
+12/16/2025  11:12 PM    <DIR>          .
+12/16/2025  11:12 PM    <DIR>          ..
+12/16/2025  11:12 PM    <DIR>          css
+12/16/2025  11:12 PM    <DIR>          data
+12/17/2025  01:11 AM    <DIR>          js
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\assets\css
+
+12/16/2025  11:12 PM    <DIR>          .
+12/16/2025  11:12 PM    <DIR>          ..
+12/17/2025  01:15 AM             4,912 style.css
+               1 File(s)          4,912 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\assets\data
+
+12/16/2025  11:12 PM    <DIR>          .
+12/16/2025  11:12 PM    <DIR>          ..
+               0 File(s)              0 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\assets\js
+
+12/17/2025  01:11 AM    <DIR>          .
+12/17/2025  01:11 AM    <DIR>          ..
+12/17/2025  01:11 AM             1,546 charts.js
+               1 File(s)          1,546 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\coach
+
+12/17/2025  01:58 AM    <DIR>          .
+12/17/2025  01:58 AM    <DIR>          ..
+12/17/2025  01:25 AM            10,101 dashboard.php
+12/17/2025  01:58 AM             4,566 profile.php
+12/17/2025  01:57 AM             4,676 review-history.php
+12/17/2025  01:50 AM            14,490 review-session.php
+12/17/2025  01:38 AM             9,341 reviews.php
+               5 File(s)         43,174 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\config
+
+12/16/2025  11:13 PM    <DIR>          .
+12/16/2025  11:13 PM    <DIR>          ..
+12/16/2025  11:13 PM               788 auth.php
+12/16/2025  11:13 PM               749 config.php
+               2 File(s)          1,537 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\includes
+
+12/16/2025  11:14 PM    <DIR>          .
+12/16/2025  11:14 PM    <DIR>          ..
+12/16/2025  11:14 PM               567 footer.php
+12/16/2025  11:13 PM               599 head.php
+12/17/2025  02:21 AM             3,541 navbar.php
+               3 File(s)          4,707 bytes
+
+ Directory of C:\xampp\htdocs\liftright\web\trainee
+
+12/17/2025  01:05 AM    <DIR>          .
+12/17/2025  01:05 AM    <DIR>          ..
+12/17/2025  01:18 AM             8,773 dashboard.php
+12/17/2025  01:07 AM             8,980 profile.php
+12/16/2025  11:25 PM            10,090 session-view.php
+12/16/2025  11:24 PM             7,513 sessions.php
+01/21/2026  11:17 AM            15,903 start-session.php
+12/17/2025  01:02 AM             8,441 sus.php
+               6 File(s)         59,700 bytes
+
+     Total Files Listed:
+             111 File(s)  1,825,697,933 bytes
+              98 Dir(s)  156,955,037,696 bytes free
+
+C:\xampp\htdocs\liftright>

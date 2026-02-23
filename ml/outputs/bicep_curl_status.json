@@ -1,5 +1,7 @@
 {
-  "state": "stopped",
-  "message": "User closed the tracker.",
-  "timestamp": 1768918513.9657612
+  "state": "finished",
+  "exercise": "bicep_curl",
+  "message": "Session finished",
+  "reps_total": 3,
+  "timestamp": 1771816996.6095338
 }
