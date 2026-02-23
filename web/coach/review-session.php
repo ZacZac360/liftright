@@ -345,7 +345,7 @@ require __DIR__ . '/../includes/head.php';
             <?php if ($existing_review): ?>
               <div class="alert alert-success mb-3">
                 <div class="fw-semibold">Review already submitted</div>
-                <div class="lr-stat-subtext mb-0">
+                <div class="lr-stat-subtext mb-3s">
                   Rating: <strong><?= (int)$existing_review['rating'] ?>/5</strong> • <?= h(fmtDT((string)$existing_review['created_at'])) ?>
                 </div>
               </div>

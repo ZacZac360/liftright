@@ -1,3 +1,7 @@
+/* =========================================================
+   LiftRight — Global Theme + Components
+   ========================================================= */
+
 /* ---------------------- Global theme ---------------------- */
 :root {
   --lr-bg: #0b1437;                /* lighter navy background */
@@ -14,13 +18,18 @@
   --lr-radius-lg: 1.25rem;
 }
 
-/* Base */
+/* ---------------------- Base ---------------------- */
 html, body { height: 100%; }
+
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: radial-gradient(circle at top left, #4169e1 0%, #1a245d 50%, #0b1437 100%);
   color: var(--lr-text);
 }
+
+/* Links */
+a { color: var(--lr-accent); }
+a:hover { color: #60a5fa; }
 
 /* ---------------------- Navbar ---------------------- */
 .liftright-navbar {
@@ -28,6 +37,7 @@ body {
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--lr-border);
 }
+
 .brand-accent {
   color: var(--lr-accent);
   font-weight: 800;
@@ -35,6 +45,7 @@ body {
   text-transform: uppercase;
   font-size: 0.9rem;
 }
+
 .brand-subtitle {
   font-size: 0.8rem;
   color: var(--lr-text-muted);
@@ -59,32 +70,37 @@ body {
   min-height: 100vh;
   padding-top: 76px; /* navbar offset */
 }
+
 .lr-main-container { max-width: 1280px; }
 
-/* Cards */
+/* ---------------------- Cards ---------------------- */
 .lr-card {
   background: linear-gradient(135deg, #111b48, #1a255d 40%, #23306d 100%);
   border-radius: var(--lr-radius-lg);
   border: 1px solid var(--lr-border);
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.8);
 }
+
 .lr-card-header {
   border-bottom: 1px solid rgba(55, 65, 81, 0.7);
   padding: 0.85rem 1.25rem;
 }
+
 .lr-card-body { padding: 1.25rem; }
 
-/* Stats */
+/* ---------------------- Stats ---------------------- */
 .lr-stat-label {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--lr-text-muted);
 }
+
 .lr-stat-value { font-size: 1.8rem; font-weight: 800; }
+
 .lr-stat-subtext { font-size: 0.8rem; color: var(--lr-text-muted); }
 
-/* Badges */
+/* ---------------------- Badges ---------------------- */
 .lr-badge {
   display: inline-flex;
   align-items: center;
@@ -93,23 +109,26 @@ body {
   font-size: 0.75rem;
   border: 1px solid transparent;
 }
+
 .lr-badge-good {
   background-color: rgba(34, 197, 94, 0.12);
   color: var(--lr-good);
   border-color: rgba(34, 197, 94, 0.3);
 }
+
 .lr-badge-warning {
   background-color: rgba(250, 204, 21, 0.12);
   color: var(--lr-warning);
   border-color: rgba(250, 204, 21, 0.3);
 }
+
 .lr-badge-danger {
   background-color: rgba(248, 113, 113, 0.12);
   color: var(--lr-danger);
   border-color: rgba(248, 113, 113, 0.3);
 }
 
-/* Sections */
+/* ---------------------- Sections ---------------------- */
 .lr-section-title {
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -117,19 +136,22 @@ body {
   color: var(--lr-text-muted);
   font-weight: 600;
 }
+
 .lr-section-heading { font-size: 1.15rem; font-weight: 700; }
 
-/* Tables */
+/* ---------------------- Tables ---------------------- */
 .table-lr-dark {
   --bs-table-bg: transparent;
   --bs-table-border-color: var(--lr-border);
   --bs-table-striped-bg: rgba(15, 23, 42, 0.85);
   color: var(--lr-text);
 }
+
 .table-lr-dark td, .table-lr-dark th { color: var(--lr-text) !important; }
+
 .table-lr-dark tbody tr:hover { background-color: rgba(37, 99, 235, 0.08); }
 
-/* Exercise chip */
+/* ---------------------- Exercise chip ---------------------- */
 .lr-chip-exercise {
   font-size: 0.75rem;
   padding: 0.15rem 0.55rem;
@@ -138,7 +160,7 @@ body {
   color: var(--lr-text);
 }
 
-/* Auth / login page */
+/* ---------------------- Auth / login page ---------------------- */
 .lr-auth-wrapper {
   min-height: 100vh;
   display: flex;
@@ -146,6 +168,7 @@ body {
   justify-content: center;
   padding: 2rem 1rem;
 }
+
 .lr-auth-card {
   max-width: 420px;
   width: 100%;
@@ -163,17 +186,116 @@ body {
   font-weight: 800;
   color: var(--lr-accent);
 }
+
 .lr-auth-heading { font-size: 1.4rem; font-weight: 700; }
 .lr-auth-subtext { font-size: 0.85rem; color: var(--lr-text-muted); }
 
-/* Footer */
+/* ---------------------- Footer ---------------------- */
 .liftright-footer { font-size: 0.75rem; color: var(--lr-text-muted); }
 
-/* Misc */
-a { color: var(--lr-accent); }
-a:hover { color: #60a5fa; }
-
-/* Scrollbar (optional) */
+/* ---------------------- Scrollbar (optional) ---------------------- */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #020617; }
 ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 999px; }
+
+/* Navbar icon buttons (notif/message) */
+/* Icon buttons - match LiftRight dark theme */
+.lr-icon-btn{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: rgba(226,232,240,0.92); /* softer than pure white */
+  text-decoration: none;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0;
+}
+
+.lr-icon-btn:hover{
+  color: rgba(226,232,240,1);
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.lr-icon-btn:focus{
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(79,157,252,0.22);
+}
+
+/* If dropdown-toggle accidentally remains, kill caret */
+.lr-icon-btn.dropdown-toggle::after{ display:none !important; }
+
+/* Notifications/Messages dropdown panel */
+.lr-drop-panel{
+  width: 360px;
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(2, 6, 23, 0.96);  /* deep slate */
+  color: rgba(226,232,240,0.92);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.55);
+  overflow: hidden;
+}
+
+/* Make sure bootstrap doesn't inject whites */
+.lr-drop-panel .dropdown-item{
+  color: rgba(226,232,240,0.92);
+  background: transparent;
+}
+
+.lr-drop-panel .dropdown-item:hover,
+.lr-drop-panel .dropdown-item:focus{
+  background: rgba(79,157,252,0.10);
+  color: rgba(226,232,240,1);
+}
+
+.lr-drop-panel .border-bottom,
+.lr-drop-panel .border-top{
+  border-color: rgba(148,163,184,0.14) !important;
+}
+
+.lr-drop-scroll{
+  max-height: 360px;
+  overflow: auto;
+}
+
+/* Nice subtle separators between items */
+.lr-drop-item{
+  border-bottom: 1px solid rgba(148,163,184,0.10);
+}
+
+/* Muted text inside the panel */
+.lr-drop-panel .text-secondary{
+  color: rgba(148,163,184,0.85) !important;
+}
+
+.lr-drop-panel .btn-outline-light{
+  border-color: rgba(148,163,184,0.28);
+  color: rgba(226,232,240,0.92);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.lr-drop-panel .btn-outline-light:hover{
+  background: rgba(79,157,252,0.12);
+  border-color: rgba(79,157,252,0.45);
+  color: rgba(226,232,240,1);
+}
+
+/* Small count pill (for Invitations link) */
+.lr-dot-pill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #0b1437;
+  background: var(--lr-warning);
+  border: 1px solid rgba(255,255,255,0.25);
+}

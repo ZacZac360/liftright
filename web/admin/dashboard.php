@@ -24,6 +24,69 @@ function badgeForPct(int $pct): string {
   return 'lr-badge lr-badge-danger';
 }
 
+$assign_msg = '';
+$assign_err = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_trainer'])) {
+  $trainee_id = (int)($_POST['trainee_id'] ?? 0);
+  $trainer_id = (int)($_POST['trainer_id'] ?? 0);
+
+  if ($trainee_id <= 0 || $trainer_id <= 0) {
+    $assign_err = "Invalid trainee or trainer ID.";
+  } else {
+    // fetch trainee
+    $stmt = $mysqli->prepare("SELECT user_id, role, full_name FROM users WHERE user_id = ? LIMIT 1");
+    $stmt->bind_param("i", $trainee_id);
+    $stmt->execute();
+    $trainee = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    // fetch trainer
+    $stmt = $mysqli->prepare("SELECT user_id, role, full_name FROM users WHERE user_id = ? LIMIT 1");
+    $stmt->bind_param("i", $trainer_id);
+    $stmt->execute();
+    $trainer = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$trainee || !$trainer) {
+      $assign_err = "Trainee or trainer not found.";
+    } elseif ($trainee['role'] !== 'user') {
+      $assign_err = "Selected trainee must have role 'user'.";
+    } elseif ($trainer['role'] !== 'trainer') {
+      $assign_err = "Selected trainer must have role 'trainer'.";
+    } else {
+      // assign trainer to trainee
+      $stmt = $mysqli->prepare("UPDATE users SET trainer_id = ? WHERE user_id = ?");
+      $stmt->bind_param("ii", $trainer_id, $trainee_id);
+      $stmt->execute();
+      $stmt->close();
+
+      // notify trainee
+      $msg1 = "You have been assigned to trainer: " . (string)$trainer['full_name'];
+      $stmt = $mysqli->prepare("
+        INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+        VALUES (?, 'assignment', ?, ?)
+      ");
+      $admin_id = (int)($_SESSION['user_id'] ?? 0);
+      $stmt->bind_param("isi", $trainee_id, $msg1, $admin_id);
+      $stmt->execute();
+      $stmt->close();
+
+      // notify trainer
+      $msg2 = "New trainee assigned: " . (string)$trainee['full_name'] . " (User ID: {$trainee_id})";
+      $stmt = $mysqli->prepare("
+        INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+        VALUES (?, 'assignment', ?, ?)
+      ");
+      $stmt->bind_param("isi", $trainer_id, $msg2, $admin_id);
+      $stmt->execute();
+      $stmt->close();
+
+      $assign_msg = "Assigned trainee #{$trainee_id} to trainer #{$trainer_id}.";
+    }
+  }
+}
+
 $total_users = 0;
 $sessions_today = 0;
 
@@ -123,6 +186,41 @@ require __DIR__ . '/../includes/head.php';
         </div>
       </div>
     </div>
+
+    <div class="lr-card mb-4">
+  <div class="lr-card-header">
+    <div class="lr-section-title mb-1">Assignments</div>
+    <div class="lr-section-heading mb-0">Assign trainer to trainee</div>
+  </div>
+  <div class="lr-card-body">
+
+    <?php if ($assign_err !== ''): ?>
+      <div class="alert alert-danger mb-3"><?= h($assign_err) ?></div>
+    <?php elseif ($assign_msg !== ''): ?>
+      <div class="alert alert-success mb-3"><?= h($assign_msg) ?></div>
+    <?php endif; ?>
+
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="assign_trainer" value="1">
+
+      <div class="col-md-4">
+        <label class="form-label lr-stat-label">Trainee ID (role: user)</label>
+        <input class="form-control" name="trainee_id" type="number" min="1" required>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label lr-stat-label">Trainer ID (role: trainer)</label>
+        <input class="form-control" name="trainer_id" type="number" min="1" required>
+      </div>
+
+      <div class="col-md-4 d-grid">
+        <button class="btn btn-primary">
+          <i class="fa-solid fa-link me-2"></i>Assign
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
     <div class="lr-card">
       <div class="lr-card-header">

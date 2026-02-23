@@ -1,207 +1,207 @@
+Enter password: ***********
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 2223
+Server version: 8.0.44 MySQL Community Server - GPL
 
--- LiftRight Prototype DB (MySQL / MariaDB - XAMPP)
+Copyright (c) 2000, 2025, Oracle and/or its affiliates.
 
-CREATE DATABASE IF NOT EXISTS liftright_db
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE liftright_db;
-
--- ---------------------------
--- 1) Users (user/trainer/admin)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS users (
-  user_id INT AUTO_INCREMENT PRIMARY KEY,
-  full_name VARCHAR(120) NOT NULL,
-  email VARCHAR(190) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role ENUM('user','trainer','admin') NOT NULL DEFAULT 'user',
-  age INT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_login TIMESTAMP NULL DEFAULT NULL,
-  UNIQUE KEY uq_users_email (email),
-  KEY idx_users_role (role)
-) ENGINE=InnoDB;
-
--- ---------------------------
--- 2) Training Sessions / Logs
--- ---------------------------
-CREATE TABLE IF NOT EXISTS training_logs (
-  log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  exercise_type ENUM('bicep_curl','shoulder_press','lateral_raise') NOT NULL,
-  source_type ENUM('upload','webcam') NOT NULL DEFAULT 'upload',
-
-  -- files (prototype-friendly)
-  video_path VARCHAR(255) NULL,
-  result_json_path VARCHAR(255) NULL,
-
-  -- summary results (what you show in UI)
-  reps_total INT NOT NULL DEFAULT 0,
-  reps_good INT NOT NULL DEFAULT 0,
-  reps_bad INT NOT NULL DEFAULT 0,
-  form_error_count INT NOT NULL DEFAULT 0,
-  fatigue_flag TINYINT(1) NOT NULL DEFAULT 0,
-
-  -- processing metrics (Objective 5: latency)
-  started_at TIMESTAMP NULL DEFAULT NULL,
-  finished_at TIMESTAMP NULL DEFAULT NULL,
-  processing_ms INT NULL DEFAULT NULL,
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_logs_user
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  KEY idx_logs_user_date (user_id, created_at),
-  KEY idx_logs_exercise_date (exercise_type, created_at),
-  KEY idx_logs_fatigue (fatigue_flag)
-) ENGINE=InnoDB;
-
--- ---------------------------
--- 3) Per-Rep Metrics (for fatigue trends + detailed review)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS rep_metrics (
-  rep_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  log_id BIGINT NOT NULL,
-  rep_index INT NOT NULL,
-
-  -- core rep metrics (keep it simple; add more later)
-  duration_ms INT NULL,
-  rom_score FLOAT NULL,              -- e.g., normalized ROM [0..1] or degrees
-  trunk_sway FLOAT NULL,             -- your fatigue proxy feature
-  confidence_avg FLOAT NULL,         -- keypoint confidence average
-
-  -- classification
-  form_label ENUM('good','bad','unknown') NOT NULL DEFAULT 'unknown',
-  anomaly_score FLOAT NULL,          -- from OCSVM if you store it
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_rep_log
-    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  UNIQUE KEY uq_rep (log_id, rep_index),
-  KEY idx_rep_log (log_id)
-) ENGINE=InnoDB;
-
--- ---------------------------
--- 4) Feedback Messages (visual/text guidance you display)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS feedback (
-  feedback_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  log_id BIGINT NOT NULL,
-
-  -- type of feedback (posture, fatigue, info)
-  feedback_type ENUM('posture','fatigue','system','tip') NOT NULL DEFAULT 'posture',
-  severity ENUM('info','warning','danger') NOT NULL DEFAULT 'info',
-
-  feedback_text TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_feedback_log
-    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  KEY idx_feedback_log (log_id),
-  KEY idx_feedback_type (feedback_type)
-) ENGINE=InnoDB;
-
--- ---------------------------
--- 5) Error Thresholds (admin-tunable rules/limits)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS error_thresholds (
-  threshold_id INT AUTO_INCREMENT PRIMARY KEY,
-  exercise_type ENUM('bicep_curl','shoulder_press','lateral_raise') NOT NULL,
-  metric_key VARCHAR(80) NOT NULL,     -- e.g., "trunk_sway", "rom_score", "elbow_angle_min"
-  compare_op ENUM('>','>=','<','<=') NOT NULL DEFAULT '>',
-  metric_value FLOAT NOT NULL,         -- the threshold value
-  severity ENUM('info','warning','danger') NOT NULL DEFAULT 'warning',
-  enabled TINYINT(1) NOT NULL DEFAULT 1,
-  notes VARCHAR(255) NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  UNIQUE KEY uq_threshold (exercise_type, metric_key, compare_op),
-  KEY idx_threshold_exercise (exercise_type),
-  KEY idx_threshold_enabled (enabled)
-) ENGINE=InnoDB;
-
--- seed a few default thresholds (tweak later)
-INSERT IGNORE INTO error_thresholds (exercise_type, metric_key, compare_op, metric_value, severity, enabled, notes)
-VALUES
-('bicep_curl',     'trunk_sway', '>', 0.25, 'warning', 1, 'Fatigue proxy: sway rising'),
-('shoulder_press', 'trunk_sway', '>', 0.30, 'warning', 1, 'Fatigue proxy: sway rising'),
-('lateral_raise',  'trunk_sway', '>', 0.28, 'warning', 1, 'Fatigue proxy: sway rising'),
-('bicep_curl',     'rom_score',  '<', 0.60, 'warning', 1, 'ROM degradation'),
-('shoulder_press', 'rom_score',  '<', 0.55, 'warning', 1, 'ROM degradation'),
-('lateral_raise',  'rom_score',  '<', 0.55, 'warning', 1, 'ROM degradation');
-
--- ---------------------------
--- 6) SUS Responses (Objective 5 usability)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS sus_responses (
-  sus_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-
-  q1 TINYINT NOT NULL, q2 TINYINT NOT NULL, q3 TINYINT NOT NULL, q4 TINYINT NOT NULL, q5 TINYINT NOT NULL,
-  q6 TINYINT NOT NULL, q7 TINYINT NOT NULL, q8 TINYINT NOT NULL, q9 TINYINT NOT NULL, q10 TINYINT NOT NULL,
-
-  sus_score FLOAT NULL,               -- store computed score for convenience
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_sus_user
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  KEY idx_sus_user_date (user_id, created_at)
-) ENGINE=InnoDB;
-
--- ---------------------------
--- 7) Expert Reviews (trainer/coach review for Objective 5)
--- ---------------------------
-CREATE TABLE IF NOT EXISTS expert_reviews (
-  review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  log_id BIGINT NOT NULL,
-  trainer_id INT NOT NULL,
-
-  rating TINYINT NULL,               -- 1..5 (optional)
-  notes TEXT NULL,
-
-  -- optional: trainer can override counts
-  marked_good_reps INT NULL,
-  marked_bad_reps INT NULL,
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_review_log
-    FOREIGN KEY (log_id) REFERENCES training_logs(log_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  CONSTRAINT fk_review_trainer
-    FOREIGN KEY (trainer_id) REFERENCES users(user_id)
-    ON DELETE RESTRICT ON UPDATE CASCADE,
-
-  UNIQUE KEY uq_review_once (log_id, trainer_id),
-  KEY idx_reviews_log (log_id)
-) ENGINE=InnoDB;
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
 
 Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 
-mysql> use database liftright
-ERROR 1049 (42000): Unknown database 'database'
 mysql> use liftright_db
 Database changed
-mysql> ALTER TABLE rep_metrics
-    ->   ADD COLUMN rep_meta JSON NULL;
-Query OK, 0 rows affected (0.02 sec)
-Records: 0  Duplicates: 0  Warnings: 0
+mysql> SHOW TABLES;
++------------------------+
+| Tables_in_liftright_db |
++------------------------+
+| error_thresholds       |
+| expert_reviews         |
+| feedback               |
+| rep_metrics            |
+| sus_responses          |
+| training_logs          |
+| users                  |
++------------------------+
+7 rows in set (0.00 sec)
 
-mysql>
-mysql> ALTER TABLE feedback
-    ->   ADD COLUMN feedback_meta JSON NULL;
-Query OK, 0 rows affected (0.01 sec)
-Records: 0  Duplicates: 0  Warnings: 0
+mysql> DESCRIBE users;
++---------------+--------------------------------+------+-----+-------------------+-------------------+
+| Field         | Type                           | Null | Key | Default           | Extra             |
++---------------+--------------------------------+------+-----+-------------------+-------------------+
+| user_id       | int                            | NO   | PRI | NULL              | auto_increment    |
+| full_name     | varchar(120)                   | NO   |     | NULL              |                   |
+| email         | varchar(190)                   | NO   | UNI | NULL              |                   |
+| password_hash | varchar(255)                   | NO   |     | NULL              |                   |
+| role          | enum('user','trainer','admin') | NO   | MUL | user              |                   |
+| age           | int                            | YES  |     | NULL              |                   |
+| created_at    | timestamp                      | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| last_login    | timestamp                      | YES  |     | NULL              |                   |
+| trainer_id    | int                            | YES  | MUL | NULL              |                   |
++---------------+--------------------------------+------+-----+-------------------+-------------------+
+9 rows in set (0.01 sec)
 
-mysql>
+mysql> DESCRIBE training_logs;
++------------------+-----------------------------------------------------+------+-----+-------------------+-------------------+
+| Field            | Type                                                | Null | Key | Default           | Extra             |
++------------------+-----------------------------------------------------+------+-----+-------------------+-------------------+
+| log_id           | bigint                                              | NO   | PRI | NULL              | auto_increment    |
+| user_id          | int                                                 | NO   | MUL | NULL              |                   |
+| exercise_type    | enum('bicep_curl','shoulder_press','lateral_raise') | NO   | MUL | NULL              |                   |
+| source_type      | enum('upload','webcam')                             | NO   |     | upload            |                   |
+| video_path       | varchar(255)                                        | YES  |     | NULL              |                   |
+| result_json_path | varchar(255)                                        | YES  |     | NULL              |                   |
+| reps_total       | int                                                 | NO   |     | 0                 |                   |
+| reps_good        | int                                                 | NO   |     | 0                 |                   |
+| reps_bad         | int                                                 | NO   |     | 0                 |                   |
+| form_error_count | int                                                 | NO   |     | 0                 |                   |
+| fatigue_flag     | tinyint(1)                                          | NO   | MUL | 0                 |                   |
+| started_at       | timestamp                                           | YES  |     | NULL              |                   |
+| finished_at      | timestamp                                           | YES  |     | NULL              |                   |
+| processing_ms    | int                                                 | YES  |     | NULL              |                   |
+| created_at       | timestamp                                           | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------------+-----------------------------------------------------+------+-----+-------------------+-------------------+
+15 rows in set (0.00 sec)
+
+mysql> DESCRIBE rep_metrics;
++----------------+-------------+------+-----+-------------------+-------------------+
+| Field          | Type        | Null | Key | Default           | Extra             |
++----------------+-------------+------+-----+-------------------+-------------------+
+| rep_id         | bigint      | NO   | PRI | NULL              | auto_increment    |
+| log_id         | bigint      | NO   | MUL | NULL              |                   |
+| rep_index      | int         | NO   |     | NULL              |                   |
+| duration_ms    | int         | YES  |     | NULL              |                   |
+| rom_score      | float       | YES  |     | NULL              |                   |
+| trunk_sway     | float       | YES  |     | NULL              |                   |
+| confidence_avg | float       | YES  |     | NULL              |                   |
+| form_label     | varchar(16) | NO   |     | good              |                   |
+| anomaly_score  | float       | YES  |     | NULL              |                   |
+| created_at     | timestamp   | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| rep_meta       | json        | YES  |     | NULL              |                   |
++----------------+-------------+------+-----+-------------------+-------------------+
+11 rows in set (0.00 sec)
+
+mysql> DESCRIBE feedback;
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+| Field         | Type                                     | Null | Key | Default           | Extra             |
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+| feedback_id   | bigint                                   | NO   | PRI | NULL              | auto_increment    |
+| log_id        | bigint                                   | NO   | MUL | NULL              |                   |
+| feedback_type | enum('posture','fatigue','system','tip') | NO   | MUL | posture           |                   |
+| severity      | enum('info','warning','danger')          | NO   |     | info              |                   |
+| feedback_text | text                                     | NO   |     | NULL              |                   |
+| created_at    | timestamp                                | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| feedback_meta | json                                     | YES  |     | NULL              |                   |
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+7 rows in set (0.00 sec)
+
+mysql> DESCRIBE expert_reviews;
++------------------+-----------+------+-----+-------------------+-------------------+
+| Field            | Type      | Null | Key | Default           | Extra             |
++------------------+-----------+------+-----+-------------------+-------------------+
+| review_id        | bigint    | NO   | PRI | NULL              | auto_increment    |
+| log_id           | bigint    | NO   | MUL | NULL              |                   |
+| trainer_id       | int       | NO   | MUL | NULL              |                   |
+| rating           | tinyint   | YES  |     | NULL              |                   |
+| notes            | text      | YES  |     | NULL              |                   |
+| marked_good_reps | int       | YES  |     | NULL              |                   |
+| marked_bad_reps  | int       | YES  |     | NULL              |                   |
+| created_at       | timestamp | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------------+-----------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> DESCRIBE error_thresholds;
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+| Field         | Type                                                | Null | Key | Default           | Extra                                         |
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+| threshold_id  | int                                                 | NO   | PRI | NULL              | auto_increment                                |
+| exercise_type | enum('bicep_curl','shoulder_press','lateral_raise') | NO   | MUL | NULL              |                                               |
+| metric_key    | varchar(80)                                         | NO   |     | NULL              |                                               |
+| compare_op    | enum('>','>=','<','<=')                             | NO   |     | >                 |                                               |
+| metric_value  | float                                               | NO   |     | NULL              |                                               |
+| severity      | enum('info','warning','danger')                     | NO   |     | warning           |                                               |
+| enabled       | tinyint(1)                                          | NO   | MUL | 1                 |                                               |
+| notes         | varchar(255)                                        | YES  |     | NULL              |                                               |
+| updated_at    | timestamp                                           | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+9 rows in set (0.00 sec)
+
+mysql> DESCRIBE sus_responses;
+
+mysql> CREATE TABLE notifications (
+    ->   notif_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ->   user_id INT NOT NULL,
+    ->   notif_type ENUM('assignment','review_posted','session_uploaded','system') NOT NULL DEFAULT 'system',
+    ->   message VARCHAR(255) NOT NULL,
+    ->   log_id BIGINT NULL,
+    ->   from_user_id INT NULL,
+    ->   is_read TINYINT(1) NOT NULL DEFAULT 0,
+    ->   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ->
+    ->   KEY idx_notif_user_read (user_id, is_read),
+    ->   KEY idx_notif_created (created_at),
+    ->   KEY idx_notif_log (log_id),
+    ->
+    ->   CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    ->   CONSTRAINT fk_notif_from_user FOREIGN KEY (from_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    ->   CONSTRAINT fk_notif_log FOREIGN KEY (log_id) REFERENCES training_logs(log_id) ON DELETE SET NULL
+    -> );
+Query OK, 0 rows affected, 1 warning (0.06 sec)
+
+mysql> DESCRIBE notifications;
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+| Field        | Type                                                           | Null | Key | Default           | Extra             |
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+| notif_id     | bigint                                                         | NO   | PRI | NULL              | auto_increment    |
+| user_id      | int                                                            | NO   | MUL | NULL              |                   |
+| notif_type   | enum('assignment','review_posted','session_uploaded','system') | NO   |     | system            |                   |
+| message      | varchar(255)                                                   | NO   |     | NULL              |                   |
+| log_id       | bigint                                                         | YES  | MUL | NULL              |                   |
+| from_user_id | int                                                            | YES  | MUL | NULL              |                   |
+| is_read      | tinyint(1)                                                     | NO   |     | 0                 |                   |
+| created_at   | timestamp                                                      | NO   | MUL | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> CREATE TABLE messages (
+    ->   message_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ->   sender_id INT NOT NULL,
+    ->   recipient_id INT NOT NULL,
+    ->   subject VARCHAR(120) NULL,
+    ->   body TEXT NOT NULL,
+    ->   log_id BIGINT NULL,
+    ->   is_read TINYINT(1) NOT NULL DEFAULT 0,
+    ->   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ->
+    ->   KEY idx_msg_recipient_read (recipient_id, is_read),
+    ->   KEY idx_msg_created (created_at),
+    ->
+    ->   CONSTRAINT fk_msg_sender FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    ->   CONSTRAINT fk_msg_recipient FOREIGN KEY (recipient_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    ->   CONSTRAINT fk_msg_log FOREIGN KEY (log_id) REFERENCES training_logs(log_id) ON DELETE SET NULL
+    -> );
+Query OK, 0 rows affected, 1 warning (0.05 sec)
+
+CREATE TABLE trainer_invites (
+  invite_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+  trainee_id INT NOT NULL,
+  trainer_id INT NOT NULL,
+
+  status ENUM('pending','accepted','declined','cancelled','expired') NOT NULL DEFAULT 'pending',
+
+  token CHAR(64) NOT NULL,                 -- used if you want “click link to accept”
+  expires_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  responded_at TIMESTAMP NULL,
+
+  UNIQUE KEY uniq_pending_pair (trainee_id, trainer_id, status),
+  KEY idx_trainer_status (trainer_id, status),
+  KEY idx_trainee_status (trainee_id, status),
+  UNIQUE KEY uniq_token (token),
+
+  CONSTRAINT fk_inv_trainee FOREIGN KEY (trainee_id) REFERENCES users(user_id) ON DELETE CASCADE,
+  CONSTRAINT fk_inv_trainer FOREIGN KEY (trainer_id) REFERENCES users(user_id) ON DELETE CASCADE
+);

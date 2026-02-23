@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
 require_role(['trainer']);
-$page_title = "My Review History";
+$page_title = "Review History";
 
 $trainer_id = (int)($_SESSION['user_id'] ?? 0);
 
@@ -23,30 +23,88 @@ function fmtDT(?string $dt): string {
   $ts = strtotime($dt);
   return $ts ? date("M d, Y • g:i A", $ts) : $dt;
 }
+if (!function_exists('snippet')) {
+  function snippet(string $s, int $max = 70): string {
+    $s = trim(preg_replace('/\s+/', ' ', $s));
+    if (mb_strlen($s) <= $max) return $s;
+    return mb_substr($s, 0, $max - 1) . '…';
+  }
+}
 
-$reviews = [];
+/* ---------- Filters ---------- */
+$q        = trim((string)($_GET['q'] ?? ''));          // trainee/email/log_id
+$exercise = trim((string)($_GET['exercise'] ?? ''));   // bicep_curl/...
+$rating   = trim((string)($_GET['rating'] ?? ''));     // 1..5
+$hasNotes = trim((string)($_GET['has_notes'] ?? ''));  // 0/1
 
-$stmt = $mysqli->prepare("
+$allowedExercises = ['bicep_curl','shoulder_press','lateral_raise'];
+$exercise = in_array($exercise, $allowedExercises, true) ? $exercise : '';
+
+$allowedRatings = ['1','2','3','4','5'];
+$rating = in_array($rating, $allowedRatings, true) ? $rating : '';
+
+$allowedHasNotes = ['0','1'];
+$hasNotes = in_array($hasNotes, $allowedHasNotes, true) ? $hasNotes : '';
+
+/* ---------- Query ---------- */
+$sql = "
   SELECT
     er.review_id,
     er.log_id,
     er.rating,
     er.notes,
     er.created_at AS reviewed_at,
+
     tl.exercise_type,
     tl.created_at AS session_date,
+
     u.full_name AS trainee_name,
     u.email AS trainee_email
   FROM expert_reviews er
   LEFT JOIN training_logs tl ON tl.log_id = er.log_id
   LEFT JOIN users u ON u.user_id = tl.user_id
   WHERE er.trainer_id = ?
-  ORDER BY er.created_at DESC
-  LIMIT 200
-");
-$stmt->bind_param("i", $trainer_id);
+";
+$types = "i";
+$params = [$trainer_id];
+
+if ($exercise !== '') {
+  $sql .= " AND tl.exercise_type = ? ";
+  $types .= "s";
+  $params[] = $exercise;
+}
+if ($rating !== '') {
+  $sql .= " AND er.rating = ? ";
+  $types .= "i";
+  $params[] = (int)$rating;
+}
+if ($hasNotes !== '') {
+  if ($hasNotes === '1') $sql .= " AND er.notes IS NOT NULL AND TRIM(er.notes) <> '' ";
+  else                  $sql .= " AND (er.notes IS NULL OR TRIM(er.notes) = '') ";
+}
+if ($q !== '') {
+  // search: log_id exact, or name/email partial
+  $sql .= "
+    AND (
+      CAST(er.log_id AS CHAR) = ?
+      OR u.full_name LIKE CONCAT('%', ?, '%')
+      OR u.email LIKE CONCAT('%', ?, '%')
+    )
+  ";
+  $types .= "sss";
+  $params[] = $q;
+  $params[] = $q;
+  $params[] = $q;
+}
+
+$sql .= " ORDER BY er.created_at DESC LIMIT 250";
+
+$stmt = $mysqli->prepare($sql);
+$stmt->bind_param($types, ...$params);
 $stmt->execute();
 $res = $stmt->get_result();
+
+$reviews = [];
 while ($r = $res->fetch_assoc()) $reviews[] = $r;
 $stmt->close();
 
@@ -58,22 +116,74 @@ require __DIR__ . '/../includes/head.php';
 <div class="lr-page-wrapper">
   <div class="container lr-main-container py-4">
 
+    <!-- Header -->
     <div class="row mb-4 align-items-center">
       <div class="col-md-8">
         <div class="lr-section-title mb-1">Coach</div>
-        <h1 class="lr-section-heading mb-1">My Review History</h1>
-        <p class="lr-stat-subtext mb-0">All expert reviews you have submitted (latest first).</p>
+        <h1 class="lr-section-heading mb-1">Review History</h1>
+        <p class="lr-stat-subtext mb-0">Browse your submitted expert reviews. Use filters to find a session fast.</p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a class="btn btn-outline-light btn-sm" href="<?= $BASE_URL ?>/coach/dashboard.php">Back to Dashboard</a>
+        <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/coach/profile.php">Back to Profile</a>
       </div>
     </div>
 
+    <!-- Filters -->
+    <div class="lr-card mb-4">
+      <div class="lr-card-body">
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label lr-stat-label">Search</label>
+            <input class="form-control" name="q"
+                   placeholder="Trainee name, email, or Session ID..."
+                   value="<?= h($q) ?>">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label lr-stat-label">Exercise</label>
+            <select class="form-select" name="exercise">
+              <option value="">All</option>
+              <option value="bicep_curl" <?= $exercise==='bicep_curl'?'selected':'' ?>>Bicep Curl</option>
+              <option value="shoulder_press" <?= $exercise==='shoulder_press'?'selected':'' ?>>Shoulder Press</option>
+              <option value="lateral_raise" <?= $exercise==='lateral_raise'?'selected':'' ?>>Lateral Raise</option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label lr-stat-label">Rating</label>
+            <select class="form-select" name="rating">
+              <option value="">All</option>
+              <option value="5" <?= $rating==='5'?'selected':'' ?>>5</option>
+              <option value="4" <?= $rating==='4'?'selected':'' ?>>4</option>
+              <option value="3" <?= $rating==='3'?'selected':'' ?>>3</option>
+              <option value="2" <?= $rating==='2'?'selected':'' ?>>2</option>
+              <option value="1" <?= $rating==='1'?'selected':'' ?>>1</option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label lr-stat-label">Notes</label>
+            <select class="form-select" name="has_notes">
+              <option value="">All</option>
+              <option value="1" <?= $hasNotes==='1'?'selected':'' ?>>With notes</option>
+              <option value="0" <?= $hasNotes==='0'?'selected':'' ?>>No notes</option>
+            </select>
+          </div>
+
+          <div class="col-12 d-flex gap-2 mt-2">
+            <button class="btn btn-outline-light" type="submit">Apply</button>
+            <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/coach/review-history.php">Reset</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- List -->
     <div class="lr-card">
       <div class="lr-card-header d-flex justify-content-between align-items-center">
         <div>
-          <div class="lr-section-title mb-1">Reviews</div>
-          <div class="lr-section-heading mb-0">Submitted evaluations</div>
+          <div class="lr-section-title mb-1">Results</div>
+          <div class="lr-section-heading mb-0">Submitted reviews</div>
         </div>
         <div class="lr-stat-subtext mb-0"><?= count($reviews) ?> shown</div>
       </div>
@@ -88,28 +198,56 @@ require __DIR__ . '/../includes/head.php';
                 <th>Session</th>
                 <th>Exercise</th>
                 <th class="text-end">Rating</th>
+                <th>Notes</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
             <?php if (!$reviews): ?>
               <tr>
-                <td colspan="6" class="text-center py-4 lr-stat-subtext">No reviews submitted yet.</td>
+                <td colspan="7" class="text-center py-4 lr-stat-subtext">No matching reviews found.</td>
               </tr>
             <?php else: ?>
               <?php foreach ($reviews as $r): ?>
+                <?php
+                  $notes = (string)($r['notes'] ?? '');
+                  $has = (trim($notes) !== '');
+                  $log_id = (int)($r['log_id'] ?? 0);
+                ?>
                 <tr>
                   <td><?= h(fmtDT((string)$r['reviewed_at'])) ?></td>
+
                   <td>
                     <div class="fw-semibold"><?= h((string)($r['trainee_name'] ?? 'Unknown Trainee')) ?></div>
                     <div class="lr-stat-subtext"><?= h((string)($r['trainee_email'] ?? '—')) ?></div>
                   </td>
-                  <td><?= h(fmtDT((string)$r['session_date'])) ?></td>
-                  <td><span class="lr-chip-exercise"><?= h(formatExercise((string)($r['exercise_type'] ?? 'unknown'))) ?></span></td>
-                  <td class="text-end"><span class="lr-badge lr-badge-good"><?= (int)$r['rating'] ?>/5</span></td>
+
+                  <td>
+                    <div class="fw-semibold">#<?= $log_id ?></div>
+                    <div class="lr-stat-subtext"><?= h(fmtDT((string)$r['session_date'])) ?></div>
+                  </td>
+
+                  <td>
+                    <span class="lr-chip-exercise">
+                      <?= h(formatExercise((string)($r['exercise_type'] ?? 'unknown'))) ?>
+                    </span>
+                  </td>
+
+                  <td class="text-end">
+                    <span class="lr-badge lr-badge-good"><?= (int)$r['rating'] ?>/5</span>
+                  </td>
+
+                  <td style="max-width: 420px;">
+                    <?php if (!$has): ?>
+                      <span class="lr-stat-subtext">—</span>
+                    <?php else: ?>
+                      <span class="lr-stat-subtext"><?= h(snippet($notes, 140)) ?></span>
+                    <?php endif; ?>
+                  </td>
+
                   <td class="text-end">
                     <a class="btn btn-sm btn-outline-light"
-                       href="<?= $BASE_URL ?>/coach/review-session.php?log_id=<?= (int)$r['log_id'] ?>">
+                       href="<?= $BASE_URL ?>/coach/review-session.php?log_id=<?= $log_id ?>">
                       Open
                     </a>
                   </td>
@@ -122,11 +260,11 @@ require __DIR__ . '/../includes/head.php';
       </div>
 
       <?php if ($reviews): ?>
-      <div class="lr-card-body">
-        <div class="lr-stat-subtext mb-0">
-          Notes are stored (for evaluation), but not shown in the table to keep it clean. Open any row to view details.
+        <div class="lr-card-body">
+          <div class="lr-stat-subtext mb-0">
+            Tip: Use Search to jump to a specific session (#log_id) or find a trainee by name/email.
+          </div>
         </div>
-      </div>
       <?php endif; ?>
 
     </div>
