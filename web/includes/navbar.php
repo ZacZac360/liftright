@@ -339,7 +339,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                           <div class="small fw-semibold"><?= h((string)$m['sender_name']) ?></div>
                           <div class="small text-secondary" style="opacity:.85;"><?= h(date("M d", strtotime((string)$m['created_at']))) ?></div>
                         </div>
-                        <div class="small"><?= h(snippet($preview, 78)) ?></div>
+                        <div class="small"><?= h(lr_snippet($preview, 78)) ?></div>
                       </a>
                     <?php endforeach; ?>
                   <?php endif; ?>

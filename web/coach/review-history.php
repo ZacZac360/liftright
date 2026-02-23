@@ -236,7 +236,7 @@ require __DIR__ . '/../includes/head.php';
                     <?php if (!$has): ?>
                       <span class="lr-stat-subtext">—</span>
                     <?php else: ?>
-                      <span class="lr-stat-subtext"><?= h(snippet($notes, 140)) ?></span>
+                      <span class="lr-stat-subtext"><?= h(lr_snippet($notes, 140)) ?></span>
                     <?php endif; ?>
                   </td>
 
