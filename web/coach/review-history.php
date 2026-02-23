@@ -10,6 +10,8 @@ $page_title = "Review History";
 
 $trainer_id = (int)($_SESSION['user_id'] ?? 0);
 
+require_once __DIR__ . '/../includes/text_helpers.php';
+
 function formatExercise(string $ex): string {
   return match($ex) {
     'shoulder_press' => 'Shoulder Press',
@@ -22,13 +24,6 @@ function fmtDT(?string $dt): string {
   if (!$dt) return "—";
   $ts = strtotime($dt);
   return $ts ? date("M d, Y • g:i A", $ts) : $dt;
-}
-if (!function_exists('snippet')) {
-  function snippet(string $s, int $max = 70): string {
-    $s = trim(preg_replace('/\s+/', ' ', $s));
-    if (mb_strlen($s) <= $max) return $s;
-    return mb_substr($s, 0, $max - 1) . '…';
-  }
 }
 
 /* ---------- Filters ---------- */

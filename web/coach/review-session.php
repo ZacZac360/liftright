@@ -150,6 +150,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    // Notify trainee that a review was posted
+    $stmt = $mysqli->prepare("SELECT user_id FROM training_logs WHERE log_id = ? LIMIT 1");
+    $stmt->bind_param("i", $log_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $trainee_id = (int)($row['user_id'] ?? 0);
+
+    if ($trainee_id > 0) {
+      $msg = "Your session #{$log_id} has been reviewed by your trainer.";
+
+      $stmt = $mysqli->prepare("
+        INSERT INTO notifications (user_id, notif_type, message, log_id, from_user_id)
+        VALUES (?, 'review_posted', ?, ?, ?)
+      ");
+      $stmt->bind_param("isii", $trainee_id, $msg, $log_id, $trainer_id);
+      $stmt->execute();
+      $stmt->close();
+    }
+
     // reload existing review
     $stmt = $mysqli->prepare("
       SELECT review_id, trainer_id, rating, notes, marked_good_reps, marked_bad_reps, created_at
@@ -345,7 +366,7 @@ require __DIR__ . '/../includes/head.php';
             <?php if ($existing_review): ?>
               <div class="alert alert-success mb-3">
                 <div class="fw-semibold">Review already submitted</div>
-                <div class="lr-stat-subtext mb-3s">
+                <div class="lr-stat-subtext mb-0">
                   Rating: <strong><?= (int)$existing_review['rating'] ?>/5</strong> • <?= h(fmtDT((string)$existing_review['created_at'])) ?>
                 </div>
               </div>

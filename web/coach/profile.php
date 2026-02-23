@@ -6,6 +6,11 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
 require_role(['trainer']);
+
+require_once __DIR__ . '/../includes/profile_change_helpers.php';
+$pending = get_pending_profile_request($mysqli, $user_id);require_once __DIR__ . '/../includes/profile_change_helpers.php';
+
+
 $page_title = "Coach Profile";
 
 $trainer_id = (int)($_SESSION['user_id'] ?? 0);
@@ -41,6 +46,14 @@ function fmtDT(?string $dt): string {
   return $ts ? date("M d, Y • g:i A", $ts) : $dt;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_request_id'])) {
+  $rid = (int)$_POST['cancel_request_id'];
+  if (cancel_profile_request($mysqli, $rid, $user_id)) {
+    header("Location: {$BASE_URL}/" . ($_SESSION['role']==='trainer'?'coach':'trainee') . "/profile.php?cancelled=1");
+    exit;
+  }
+}
+
 require __DIR__ . '/../includes/head.php';
 ?>
 <body>
@@ -62,6 +75,23 @@ require __DIR__ . '/../includes/head.php';
 
     <div class="row g-4">
 
+    <?php if ($pending): ?>
+      <div class="alert alert-warning">
+        <div class="fw-semibold">Awaiting admin approval</div>
+        <div class="lr-stat-subtext mb-2">
+          Submitted: <?= h(date("M d, Y • g:i A", strtotime((string)$pending['created_at']))) ?>
+        </div>
+
+        <form method="post" action="<?= $BASE_URL ?>/<?= ($_SESSION['role']==='trainer'?'coach':'trainee') ?>/profile.php" class="m-0">
+          <input type="hidden" name="cancel_request_id" value="<?= (int)$pending['request_id'] ?>">
+          <button class="btn btn-sm btn-outline-light" type="submit"
+                  onclick="return confirm('Cancel this pending request?');">
+            Cancel request
+          </button>
+        </form>
+      </div>
+    <?php endif; ?>
+
       <div class="col-lg-5">
         <div class="lr-card">
           <div class="lr-card-header">
@@ -81,7 +111,34 @@ require __DIR__ . '/../includes/head.php';
             <hr class="border-secondary my-4">
 
             <div class="lr-stat-subtext mb-0">
-              Prototype note: editing profile is intentionally disabled.
+              <?php
+                require_once __DIR__ . '/../includes/profile_change_helpers.php';
+                $pending = get_pending_profile_request($mysqli, (int)$user_id);
+                ?>
+
+                <?php if ($pending): ?>
+                  <div class="alert alert-warning mt-3">
+                    <div class="fw-semibold">Awaiting Admin Approval</div>
+                    <div class="small" style="opacity:.9;">
+                      Requested: 
+                      <?= h((string)$pending['requested_full_name']) ?> •
+                      <?= h((string)$pending['requested_email']) ?> •
+                      Age: <?= $pending['requested_age'] === null ? '—' : (int)$pending['requested_age'] ?>
+                    </div>
+
+                    <form method="post" action="<?= $BASE_URL ?>/cancel-profile-request.php" class="mt-2">
+                      <button class="btn btn-sm btn-outline-light" name="cancel_id"
+                              value="<?= (int)$pending['request_id'] ?>" type="submit">
+                        Cancel Request
+                      </button>
+                    </form>
+                  </div>
+                <?php else: ?>
+                  <a class="btn btn-outline-light mt-2"
+                    href="<?= $BASE_URL ?>/<?= ($role === 'trainer') ? 'coach' : 'trainee' ?>/edit-profile.php">
+                    Edit Profile
+                  </a>
+                <?php endif; ?>
             </div>
           </div>
         </div>

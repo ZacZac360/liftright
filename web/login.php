@@ -1,10 +1,26 @@
 <?php
 session_start();
 require_once __DIR__ . "/config/config.php";
+require_once __DIR__ . "/config/auth.php";
 
 $page_title = "Login";
 
 $err = "";
+
+/* ---------- Handle status redirect messages ---------- */
+$statusMsg = "";
+if (isset($_GET['status'])) {
+  $s = (string)$_GET['status'];
+  if ($s === 'pending') {
+    $statusMsg = "Your account is awaiting admin approval.";
+  } elseif ($s === 'rejected') {
+    $statusMsg = "Your account was rejected. Please contact the administrator.";
+  } elseif ($s === 'suspended') {
+    $statusMsg = "Your account has been suspended.";
+  }
+}
+
+/* ---------- Login POST ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $email = trim((string)($_POST['email'] ?? ''));
   $pass  = (string)($_POST['password'] ?? '');
@@ -12,7 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($email === "" || $pass === "") {
     $err = "Enter your email and password.";
   } else {
-    $stmt = $mysqli->prepare("SELECT user_id, full_name, email, password_hash, role FROM users WHERE email = ? LIMIT 1");
+
+    $stmt = $mysqli->prepare("
+      SELECT user_id, full_name, email, password_hash, role, account_status
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+    ");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -22,16 +44,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$u || !password_verify($pass, (string)$u['password_hash'])) {
       $err = "Invalid credentials.";
     } else {
-      $_SESSION['user_id']   = (int)$u['user_id'];
-      $_SESSION['full_name'] = (string)$u['full_name'];
-      $_SESSION['email']     = (string)$u['email'];
-      $_SESSION['role']      = (string)$u['role'];
 
+      // If NOT approved → block login immediately
+      if ((string)$u['account_status'] !== 'approved') {
+        header("Location: {$BASE_URL}/login.php?status=" . urlencode($u['account_status']));
+        exit;
+      }
+
+      // Set session properly using helper
+      set_auth_session($u);
+
+      // Update last login
       $uid = (int)$u['user_id'];
-      $mysqli->query("UPDATE users SET last_login = NOW() WHERE user_id = {$uid}");
+      $stmt = $mysqli->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+      $stmt->bind_param("i", $uid);
+      $stmt->execute();
+      $stmt->close();
 
-      // Direct route by DB role (user/trainer/admin)
+      // Route by role
       $role = (string)$u['role'];
+
       if ($role === 'user') {
         header("Location: {$BASE_URL}/trainee/dashboard.php");
         exit;
@@ -61,6 +93,10 @@ require __DIR__ . "/includes/head.php";
     <div class="lr-auth-heading mb-1">Sign in</div>
     <div class="lr-auth-subtext mb-3">Use your prototype account.</div>
 
+    <?php if ($statusMsg): ?>
+      <div class="alert alert-warning"><?= h($statusMsg) ?></div>
+    <?php endif; ?>
+
     <?php if ($err): ?>
       <div class="alert alert-danger"><?= h($err) ?></div>
     <?php endif; ?>
@@ -77,8 +113,7 @@ require __DIR__ . "/includes/head.php";
 
       <button class="btn btn-primary mt-2">Login</button>
 
-      <!-- Register disabled for now -->
-      <button class="btn btn-outline-light" type="button" disabled title="Register is disabled for now">
+      <button class="btn btn-outline-light" type="button" disabled>
         Create account (disabled)
       </button>
     </form>

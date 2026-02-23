@@ -145,7 +145,7 @@ require __DIR__ . '/../includes/head.php';
       <div class="col-md-8">
         <div class="lr-section-title mb-1">System Integrity</div>
         <h1 class="lr-section-heading mb-1">Error Thresholds</h1>
-        <p class="lr-stat-subtext mb-0">Admin-controlled parameters for rule-based feedback (prototype).</p>
+        <p class="lr-stat-subtext mb-0">Admin-controlled parameters for rule-based feedback.</p>
       </div>
     </div>
 

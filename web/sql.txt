@@ -205,3 +205,30 @@ CREATE TABLE trainer_invites (
   CONSTRAINT fk_inv_trainee FOREIGN KEY (trainee_id) REFERENCES users(user_id) ON DELETE CASCADE,
   CONSTRAINT fk_inv_trainer FOREIGN KEY (trainer_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+
+CREATE TABLE profile_change_requests (
+  request_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+  user_id INT NOT NULL,
+  requested_full_name VARCHAR(120) NULL,
+  requested_email VARCHAR(120) NULL,
+  requested_age INT NULL,
+
+  status ENUM('pending','approved','rejected','cancelled') 
+    NOT NULL DEFAULT 'pending',
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP NULL,
+  reviewed_by INT NULL, -- admin user_id
+  admin_notes TEXT NULL,
+
+  CONSTRAINT fk_pcr_user 
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+
+  CONSTRAINT fk_pcr_admin 
+    FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+ALTER TABLE users
+ADD COLUMN account_status ENUM('pending','approved','rejected','suspended')
+NOT NULL DEFAULT 'pending';

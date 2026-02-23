@@ -32,10 +32,42 @@ $stmt->execute();
 $session = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+// Mark notifications for this session as read (when opened)
+$stmt = $mysqli->prepare("
+  UPDATE notifications
+  SET is_read = 1
+  WHERE user_id = ?
+    AND log_id = ?
+    AND notif_type = 'review_posted'
+");
+$stmt->bind_param("ii", $user_id, $log_id);
+$stmt->execute();
+$stmt->close();
+
 if (!$session) {
   header("Location: {$BASE_URL}/trainee/sessions.php");
   exit;
 }
+
+// Latest trainer review (if any) for this session
+$trainer_review = null;
+$stmt = $mysqli->prepare("
+  SELECT
+    er.review_id,
+    er.rating,
+    er.notes,
+    er.created_at,
+    u.full_name AS trainer_name
+  FROM expert_reviews er
+  JOIN users u ON u.user_id = er.trainer_id
+  WHERE er.log_id = ?
+  ORDER BY er.created_at DESC
+  LIMIT 1
+");
+$stmt->bind_param("i", $log_id);
+$stmt->execute();
+$trainer_review = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
 // Rep metrics
 $reps = [];
@@ -165,6 +197,42 @@ require __DIR__ . '/../includes/head.php';
             <p class="lr-stat-subtext mb-0"><?= $session['processing_ms'] === null ? 'No timing data.' : 'ms latency (Objective 5)' ?></p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Trainer Review -->
+    <div class="lr-card mb-4">
+      <div class="lr-card-header">
+        <div class="lr-section-title mb-1">Trainer Review</div>
+        <div class="lr-section-heading mb-0">Expert evaluation</div>
+      </div>
+
+      <div class="lr-card-body">
+        <?php if (!$trainer_review): ?>
+          <div class="lr-stat-subtext mb-0">No trainer review yet.</div>
+        <?php else: ?>
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <div class="lr-stat-label">Trainer</div>
+              <div class="fw-semibold"><?= h((string)$trainer_review['trainer_name']) ?></div>
+              <div class="lr-stat-subtext">
+                Reviewed <?= h(date("M d, Y • g:i A", strtotime((string)$trainer_review['created_at']))) ?>
+              </div>
+            </div>
+
+            <div>
+              <div class="lr-stat-label">Rating</div>
+              <span class="lr-badge lr-badge-good"><?= (int)$trainer_review['rating'] ?>/5</span>
+            </div>
+          </div>
+
+          <hr class="border-secondary my-3">
+
+          <div class="lr-stat-label">Notes</div>
+          <div class="lr-stat-subtext" style="white-space:pre-wrap;">
+            <?= trim((string)$trainer_review['notes']) !== '' ? h((string)$trainer_review['notes']) : '—' ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 <?php
-// liftright/web/admin/evaluation.php
+// liftright/web/admin/evaluation.php (POLISHED)
 
 session_start();
 require_once __DIR__ . '/../config/config.php';
@@ -23,7 +23,6 @@ function formatExercise(string $ex): string {
 $from = trim((string)($_GET['from'] ?? ''));
 $to   = trim((string)($_GET['to'] ?? ''));
 
-// Basic date validation (YYYY-MM-DD)
 $from_ok = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from);
 $to_ok   = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to);
 
@@ -65,6 +64,10 @@ if ($to_ok) {
   $types_reviews .= "s";
   $params_reviews[] = $to;
 }
+
+$active_filters = [];
+if ($from_ok) $active_filters[] = "From: " . $from;
+if ($to_ok) $active_filters[] = "To: " . $to;
 
 /**
  * 1) Global Session Stats
@@ -114,7 +117,7 @@ $reviewed_logs = (int)($row['reviewed_logs'] ?? 0);
 $stats['review_coverage'] = ($total_logs > 0) ? (int)round(($reviewed_logs / $total_logs) * 100) : 0;
 
 /**
- * 2) Sessions by Exercise (accuracy + fatigue)
+ * 2) Sessions by Exercise
  */
 $by_exercise = [];
 $stmt = $mysqli->prepare("
@@ -137,10 +140,7 @@ $stmt->close();
 /**
  * 3) SUS Summary
  */
-$sus = [
-  'count' => 0,
-  'mean' => 0,
-];
+$sus = ['count' => 0, 'mean' => 0];
 $stmt = $mysqli->prepare("
   SELECT COUNT(*) AS c, AVG(sus_score) AS mean_score
   FROM sus_responses
@@ -157,10 +157,7 @@ $sus['mean']  = (int)round((float)($row['mean_score'] ?? 0));
 /**
  * 4) Expert Reviews Summary + by exercise
  */
-$reviews = [
-  'count' => 0,
-  'mean_rating' => 0,
-];
+$reviews = ['count' => 0, 'mean_rating' => 0];
 $stmt = $mysqli->prepare("
   SELECT COUNT(*) AS c, AVG(rating) AS mean_rating
   FROM expert_reviews er
@@ -204,27 +201,45 @@ require __DIR__ . '/../includes/head.php';
       <div class="col-md-8">
         <div class="lr-section-title mb-1">Administration</div>
         <h1 class="lr-section-heading mb-1">Evaluation Summary</h1>
-        <p class="lr-stat-subtext mb-0">System-wide usability + expert evaluation + performance KPIs.</p>
+        <p class="lr-stat-subtext mb-0">System-wide usability, expert evaluation, and performance KPIs.</p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/exports.php">
+          <i class="fa-solid fa-download me-2"></i>Exports
+        </a>
       </div>
     </div>
 
     <div class="lr-card mb-3">
       <div class="lr-card-body">
-        <form method="GET" class="row g-2">
+        <form method="GET" class="row g-2 align-items-end">
           <div class="col-md-4">
-            <label class="form-label">From (YYYY-MM-DD)</label>
-            <input class="form-control" name="from" value="<?= h($from) ?>" placeholder="2025-01-01">
+            <label class="form-label lr-stat-label">From</label>
+            <input class="form-control" type="date" name="from" value="<?= h($from) ?>">
           </div>
           <div class="col-md-4">
-            <label class="form-label">To (YYYY-MM-DD)</label>
-            <input class="form-control" name="to" value="<?= h($to) ?>" placeholder="2025-12-31">
+            <label class="form-label lr-stat-label">To</label>
+            <input class="form-control" type="date" name="to" value="<?= h($to) ?>">
           </div>
-          <div class="col-md-4 d-grid align-items-end">
-            <button class="btn btn-primary mt-4" type="submit">
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-primary" type="submit">
               <i class="fa-solid fa-filter me-2"></i>Apply
             </button>
           </div>
+          <div class="col-md-2 d-grid">
+            <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/evaluation.php">Reset</a>
+          </div>
         </form>
+
+        <?php if ($active_filters): ?>
+          <div class="lr-stat-subtext mt-3 mb-0">
+            Active filters: <strong><?= h(implode(" • ", $active_filters)) ?></strong>
+          </div>
+        <?php else: ?>
+          <div class="lr-stat-subtext mt-3 mb-0">
+            No filters applied. Showing all-time aggregates.
+          </div>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -233,7 +248,7 @@ require __DIR__ . '/../includes/head.php';
         <div class="lr-card h-100"><div class="lr-card-body">
           <div class="lr-stat-label">Sessions</div>
           <div class="lr-stat-value mt-1"><?= (int)$stats['sessions_total'] ?></div>
-          <div class="lr-stat-subtext">Total processed (filtered range).</div>
+          <div class="lr-stat-subtext">Processed (filtered range).</div>
         </div></div>
       </div>
 
@@ -249,15 +264,15 @@ require __DIR__ . '/../includes/head.php';
         <div class="lr-card h-100"><div class="lr-card-body">
           <div class="lr-stat-label">Fatigue rate</div>
           <div class="lr-stat-value mt-1"><?= (int)$stats['fatigue_rate'] ?>%</div>
-          <div class="lr-stat-subtext">Percent of sessions flagged.</div>
+          <div class="lr-stat-subtext">Sessions flagged as fatigue.</div>
         </div></div>
       </div>
 
       <div class="col-md-6 col-lg-3">
         <div class="lr-card h-100"><div class="lr-card-body">
-          <div class="lr-stat-label">Review coverage</div>
-          <div class="lr-stat-value mt-1"><?= (int)$stats['review_coverage'] ?>%</div>
-          <div class="lr-stat-subtext">Sessions with expert review.</div>
+          <div class="lr-stat-label">Avg processing time</div>
+          <div class="lr-stat-value mt-1"><?= (int)$stats['avg_processing_ms'] ?> ms</div>
+          <div class="lr-stat-subtext">Mean <code>processing_ms</code>.</div>
         </div></div>
       </div>
     </div>
@@ -297,6 +312,13 @@ require __DIR__ . '/../includes/head.php';
               </table>
             </div>
           </div>
+
+          <div class="lr-card-body">
+            <div class="lr-stat-subtext mb-0">
+              Review coverage: <strong><?= (int)$stats['review_coverage'] ?>%</strong> of sessions have an expert review.
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -351,13 +373,6 @@ require __DIR__ . '/../includes/head.php';
                   </table>
                 </div>
               </div>
-
-              <div class="col-12">
-                <div class="lr-stat-subtext mt-2">
-                  Tip: This page is perfect for Chapter 4 tables (SUS mean, expert mean, fatigue rate, accuracy per exercise).
-                </div>
-              </div>
-
             </div>
           </div>
         </div>

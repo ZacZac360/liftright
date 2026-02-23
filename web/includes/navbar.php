@@ -7,19 +7,13 @@ $role = $_SESSION['role'] ?? null;
 $full_name = $_SESSION['full_name'] ?? null;
 $user_id = (int)($_SESSION['user_id'] ?? 0);
 
+require_once __DIR__ . '/text_helpers.php';
+
 function initials(string $name): string {
   $parts = preg_split('/\s+/', trim($name));
   $a = $parts[0][0] ?? 'U';
   $b = $parts[count($parts)-1][0] ?? '';
   return strtoupper($a . $b);
-}
-
-if (!function_exists('snippet')) {
-  function snippet(string $s, int $max = 70): string {
-    $s = trim(preg_replace('/\s+/', ' ', $s));
-    if (mb_strlen($s) <= $max) return $s;
-    return mb_substr($s, 0, $max - 1) . '…';
-  }
 }
 
 function table_exists(mysqli $db, string $table): bool {
@@ -81,6 +75,29 @@ function pending_invites_count(mysqli $db, int $trainer_id): int {
   return (int)($row['c'] ?? 0);
 }
 
+/* ---------- Admin badges (privacy-safe counts) ---------- */
+function pending_accounts_count(mysqli $db): int {
+  if (!table_exists($db, 'users')) return 0;
+  // account_status column assumed; if not present, return 0 safely
+  // We'll just try query; if it fails, catch outside (not here) isn't possible.
+  $stmt = $db->prepare("SELECT COUNT(*) AS c FROM users WHERE account_status = 'pending'");
+  if (!$stmt) return 0;
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return (int)($row['c'] ?? 0);
+}
+
+function pending_profile_requests_count(mysqli $db): int {
+  if (!table_exists($db, 'profile_change_requests')) return 0;
+  $stmt = $db->prepare("SELECT COUNT(*) AS c FROM profile_change_requests WHERE status = 'pending'");
+  if (!$stmt) return 0;
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return (int)($row['c'] ?? 0);
+}
+
 function fetch_latest_notifications(mysqli $db, int $user_id, int $limit = 5): array {
   if ($user_id <= 0) return [];
   if (!table_exists($db, 'notifications')) return [];
@@ -134,6 +151,17 @@ $invite_unread = (
 
 $notif_items = (isset($mysqli) && $mysqli instanceof mysqli) ? fetch_latest_notifications($mysqli, $user_id, 5) : [];
 $msg_items   = (isset($mysqli) && $mysqli instanceof mysqli) ? fetch_latest_messages($mysqli, $user_id, 5) : [];
+
+/* ---------- Admin badge counts ---------- */
+$pending_accounts = (
+  $role === 'admin' &&
+  isset($mysqli) && $mysqli instanceof mysqli
+) ? pending_accounts_count($mysqli) : 0;
+
+$pending_profile_requests = (
+  $role === 'admin' &&
+  isset($mysqli) && $mysqli instanceof mysqli
+) ? pending_profile_requests_count($mysqli) : 0;
 
 /* ---------- Role-aware routes ---------- */
 $dashboard_href = $BASE_URL . '/index.php';
@@ -199,8 +227,27 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
 
           <?php elseif ($role === 'admin'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/users.php">Users</a></li>
+
+            <li class="nav-item">
+              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/users.php">
+                Users
+                <?php if ($pending_accounts > 0): ?>
+                  <span class="lr-dot-pill"><?= (int)$pending_accounts ?></span>
+                <?php endif; ?>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/profile-requests.php">
+                Profile Requests
+                <?php if ($pending_profile_requests > 0): ?>
+                  <span class="lr-dot-pill"><?= (int)$pending_profile_requests ?></span>
+                <?php endif; ?>
+              </a>
+            </li>
+
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/thresholds.php">Thresholds</a></li>
+            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/models.php">Models</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/exports.php">Exports</a></li>
           <?php endif; ?>
 
@@ -241,7 +288,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                           <div class="text-capitalize small fw-semibold"><?= h((string)$n['notif_type']) ?></div>
                           <div class="small text-secondary" style="opacity:.85;"><?= h(date("M d", strtotime((string)$n['created_at']))) ?></div>
                         </div>
-                        <div class="small"><?= h(snippet((string)$n['message'], 78)) ?></div>
+                        <div class="small"><?= h(lr_snippet((string)$n['message'], 78)) ?></div>
                       </a>
                     <?php endforeach; ?>
                   <?php endif; ?>
@@ -284,7 +331,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                         $isUnread = ((int)$m['is_read'] === 0);
                         $rowStyle = $isUnread ? "background: rgba(79,157,252,0.08);" : "";
                         $subject = (string)($m['subject'] ?? '');
-                        $preview = $subject !== '' ? $subject : snippet((string)$m['body'], 78);
+                        $preview = $subject !== '' ? $subject : lr_snippet((string)$m['body'], 78);
                       ?>
                       <a class="dropdown-item lr-drop-item px-3 py-2"
                          href="<?= $BASE_URL ?>/messages.php" style="<?= $rowStyle ?>">
@@ -340,8 +387,24 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
               <?php endif; ?>
 
               <?php if ($role === 'admin'): ?>
-                <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/users.php"><i class="fa-solid fa-users me-2"></i>Users</a></li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= $BASE_URL ?>/admin/users.php">
+                    <span><i class="fa-solid fa-users me-2"></i>Users</span>
+                    <?php if ($pending_accounts > 0): ?>
+                      <span class="lr-dot-pill"><?= (int)$pending_accounts ?></span>
+                    <?php endif; ?>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= $BASE_URL ?>/admin/profile-requests.php">
+                    <span><i class="fa-regular fa-pen-to-square me-2"></i>Profile Requests</span>
+                    <?php if ($pending_profile_requests > 0): ?>
+                      <span class="lr-dot-pill"><?= (int)$pending_profile_requests ?></span>
+                    <?php endif; ?>
+                  </a>
+                </li>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/thresholds.php"><i class="fa-solid fa-sliders me-2"></i>Thresholds</a></li>
+                <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/models.php"><i class="fa-solid fa-microchip me-2"></i>Models</a></li>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/exports.php"><i class="fa-solid fa-download me-2"></i>Exports</a></li>
               <?php endif; ?>
 
