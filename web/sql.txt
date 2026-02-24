@@ -232,3 +232,54 @@ CREATE TABLE profile_change_requests (
 ALTER TABLE users
 ADD COLUMN account_status ENUM('pending','approved','rejected','suspended')
 NOT NULL DEFAULT 'pending';
+
+ALTER TABLE users
+  ADD COLUMN twofa_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN failed_login_attempts INT NOT NULL DEFAULT 0,
+  ADD COLUMN lock_until DATETIME NULL,
+  ADD COLUMN last_failed_login TIMESTAMP NULL;
+
+CREATE TABLE IF NOT EXISTS login_otps (
+  otp_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  otp_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  consumed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_login_otps_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  KEY idx_login_otps_user (user_id),
+  KEY idx_login_otps_exp (expires_at),
+  KEY idx_login_otps_consumed (consumed_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS trainer_applications (
+  app_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+
+  affiliation VARCHAR(120) NOT NULL,
+  credential_type ENUM('cpt','scs','pt','student','other') NOT NULL,
+  credential_ref VARCHAR(190) NULL,
+  statement TEXT NOT NULL,
+
+  proof_file VARCHAR(255) NOT NULL,
+
+  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  reviewed_by INT NULL,
+  reviewed_at DATETIME NULL,
+  review_notes TEXT NULL,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_trainer_app_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  KEY idx_ta_user (user_id),
+  KEY idx_ta_status (status),
+  KEY idx_ta_created (created_at)
+) ENGINE=InnoDB;

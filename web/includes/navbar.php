@@ -37,6 +37,16 @@ function table_exists(mysqli $db, string $table): bool {
   return $exists;
 }
 
+function pending_trainer_apps_count(mysqli $db): int {
+  if (!table_exists($db, 'trainer_applications')) return 0;
+  $stmt = $db->prepare("SELECT COUNT(*) AS c FROM trainer_applications WHERE status = 'pending'");
+  if (!$stmt) return 0;
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return (int)($row['c'] ?? 0);
+}
+
 function unread_count(mysqli $db, int $user_id, string $table): int {
   if ($user_id <= 0) return 0;
 
@@ -158,6 +168,11 @@ $pending_accounts = (
   isset($mysqli) && $mysqli instanceof mysqli
 ) ? pending_accounts_count($mysqli) : 0;
 
+$pending_trainer_apps = (
+  $role === 'admin' &&
+  isset($mysqli) && $mysqli instanceof mysqli
+) ? pending_trainer_apps_count($mysqli) : 0;
+
 $pending_profile_requests = (
   $role === 'admin' &&
   isset($mysqli) && $mysqli instanceof mysqli
@@ -215,7 +230,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
           <?php elseif ($role === 'trainer'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Dashboard</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/review-history.php">Review History</a></li>
-
+            
             <li class="nav-item">
               <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/coach/invitations.php">
                 Invitations
@@ -227,7 +242,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
 
           <?php elseif ($role === 'admin'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
-
+            
             <li class="nav-item">
               <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/users.php">
                 Users
@@ -236,7 +251,18 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                 <?php endif; ?>
               </a>
             </li>
-
+            
+            <li class="nav-item">
+              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/trainer-applications.php">
+                Trainer Apps
+                <?php if ($pending_trainer_apps > 0): ?>
+                  <span class="lr-dot-pill"><?= (int)$pending_trainer_apps ?></span>
+                <?php endif; ?>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="<?= $BASE_URL ?>/admin/audit-logs.php">Audit Logs</a>
+            </li>
             <li class="nav-item">
               <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/profile-requests.php">
                 Profile Requests
@@ -392,6 +418,15 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                     <span><i class="fa-solid fa-users me-2"></i>Users</span>
                     <?php if ($pending_accounts > 0): ?>
                       <span class="lr-dot-pill"><?= (int)$pending_accounts ?></span>
+                    <?php endif; ?>
+                  </a>
+                </li>
+
+                <li>
+                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= $BASE_URL ?>/admin/trainer-applications.php">
+                    <span><i class="fa-regular fa-id-badge me-2"></i>Trainer Apps</span>
+                    <?php if ($pending_trainer_apps > 0): ?>
+                      <span class="lr-dot-pill"><?= (int)$pending_trainer_apps ?></span>
                     <?php endif; ?>
                   </a>
                 </li>

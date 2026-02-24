@@ -88,7 +88,7 @@ require __DIR__ . '/../includes/head.php';
         <div class="lr-section-title mb-1">Trainee Overview</div>
         <h1 class="lr-section-heading mb-1">Welcome back, <?= h($full_name) ?> 👋</h1>
         <p class="lr-stat-subtext mb-0">
-          Here’s a snapshot of your recent training quality and fatigue patterns.
+          Here's a snapshot of your recent training quality and fatigue patterns.
         </p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">

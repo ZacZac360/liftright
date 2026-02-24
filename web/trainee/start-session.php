@@ -474,7 +474,7 @@ require __DIR__ . '/../includes/head.php';
               <button class="btn btn-outline-light" id="btnPrevGuide" type="button">Back</button>
               <button class="btn btn-primary" id="btnNextGuide" type="button">Next</button>
               <button class="btn btn-success" id="btnReadyGuide" type="button" style="display:none;">
-                I’m ready → Start (5s)
+                I'm ready → Start (5s)
               </button>
             </div>
           </div>
@@ -703,7 +703,7 @@ require __DIR__ . '/../includes/head.php';
     if (stateNorm === "up") {
       lastKnownPhase = "lower";
       uiInstruction.textContent = pickVariantSticky("lower", repNow);
-      uiInstructionSub.textContent = "Control the descent (don’t drop).";
+      uiInstructionSub.textContent = "Control the descent (don't drop).";
       return;
     }
 
@@ -718,7 +718,7 @@ require __DIR__ . '/../includes/head.php';
       uiInstructionSub.textContent = "Lift smoothly (no jerking).";
     } else {
       uiInstruction.textContent = pickVariantSticky("lower", repNow);
-      uiInstructionSub.textContent = "Control the descent (don’t drop).";
+      uiInstructionSub.textContent = "Control the descent (don't drop).";
     }
   }
 
@@ -866,7 +866,7 @@ require __DIR__ . '/../includes/head.php';
   /* ---------------- Guide modal logic ---------------- */
   const GUIDE_STEPS = [
     { title: "Position & framing", text: "Stand back until your shoulders to hips are visible. Face the camera. Keep lighting bright and even.", hint: "Avoid strong backlight (window behind you)." },
-    { title: "Starting posture", text: "Begin in the exercise’s neutral start position. Keep the weight controlled throughout the movement.", hint: "Keep elbows/wrists visible in frame." },
+    { title: "Starting posture", text: "Begin in the exercise's neutral start position. Keep the weight controlled throughout the movement.", hint: "Keep elbows/wrists visible in frame." },
     { title: "Warm-up & safety", text: "Warm-up is assumed. Use a manageable load. Stop if you feel pain or if STOP is recommended.", hint: "If STOP appears, rest or reduce weight before continuing." }
   ];
 

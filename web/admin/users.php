@@ -413,7 +413,7 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="lr-card-body">
         <div class="lr-stat-subtext mb-0">
-          Notes: Status drives access (recommended). Role drives UI + permissions. For safety, you can’t delete or downgrade your own account while logged in.
+          Notes: Status drives access (recommended). Role drives UI + permissions. For safety, you can't delete or downgrade your own account while logged in.
         </div>
       </div>
 

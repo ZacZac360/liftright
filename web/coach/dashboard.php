@@ -155,7 +155,7 @@ $stats['pending_reviews'] = (int)($row['pending'] ?? 0);
 /* ---------- 3) Per-trainee summary list (only when viewing ALL) ---------- */
 $trainee_summary = [];
 if ($selected_trainee_id === 0 && count($trainees) > 0) {
-  // summary per trainee (last 30 days is a nice “dashboard” horizon, but we’ll keep it all-time simple)
+  // summary per trainee (last 30 days is a nice “dashboard” horizon, but we'll keep it all-time simple)
   $stmt = $mysqli->prepare("
     SELECT
       u.user_id,

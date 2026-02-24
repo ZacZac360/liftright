@@ -299,3 +299,190 @@ a:hover { color: #60a5fa; }
   background: var(--lr-warning);
   border: 1px solid rgba(255,255,255,0.25);
 }
+
+/* ---------------------- Auth (pro layout) ---------------------- */
+.lr-auth-wrapper{
+  min-height: 100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 32px 16px;
+}
+
+.lr-auth-shell{
+  width: min(980px, 100%);
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--lr-border);
+  background: rgba(17,27,72,.9);
+  box-shadow: 0 18px 55px rgba(0,0,0,.45);
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+}
+
+.lr-auth-left{
+  padding: 32px;
+  background:
+    radial-gradient(1100px 500px at 20% 0%, rgba(79,157,252,.22), transparent 60%),
+    linear-gradient(145deg, rgba(26,37,93,.75), rgba(17,27,72,.95));
+}
+
+.lr-auth-right{
+  padding: 28px;
+  background: rgba(11,20,55,.55);
+  backdrop-filter: blur(6px);
+}
+
+.lr-auth-logo{
+  font-weight: 800;
+  letter-spacing: .5px;
+  font-size: 22px;
+  color: var(--lr-text);
+}
+
+.lr-auth-tagline{
+  margin-top: 10px;
+  color: var(--lr-text-muted);
+  line-height: 1.5;
+  max-width: 360px;
+}
+
+.lr-auth-bullets{
+  margin-top: 18px;
+  padding-left: 0;
+  list-style: none;
+  color: var(--lr-text-muted);
+}
+.lr-auth-bullets li{
+  display:flex;
+  gap:10px;
+  margin: 10px 0;
+}
+.lr-dot{
+  width:10px;height:10px;border-radius:50%;
+  background: rgba(79,157,252,.9);
+  margin-top: 6px;
+  flex: 0 0 10px;
+}
+
+.lr-auth-tabs{
+  display:flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  background: rgba(0,0,0,.12);
+}
+
+.lr-auth-tab{
+  flex: 1;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--lr-text-muted);
+  background: transparent;
+}
+.lr-auth-tab.active{
+  color: var(--lr-text);
+  background: rgba(79,157,252,.18);
+  box-shadow: inset 0 0 0 1px rgba(79,157,252,.28);
+}
+
+.lr-auth-panel{ display:none; margin-top: 16px; }
+.lr-auth-panel.active{ display:block; }
+
+.lr-auth-divider{
+  height:1px;
+  background: rgba(255,255,255,.12);
+  margin: 18px 0;
+}
+
+.lr-help-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--lr-text-muted);
+  font-size: .95rem;
+}
+
+.lr-link{
+  color: rgba(79,157,252,.95);
+  text-decoration: none;
+}
+.lr-link:hover{ text-decoration: underline; }
+
+@media (max-width: 920px){
+  .lr-auth-shell{ grid-template-columns: 1fr; }
+  .lr-auth-left{ display:none; } /* hide brand panel on mobile */
+}
+
+/* -------- Auth extras: password meter + input icons -------- */
+.lr-pass-row{
+  position: relative;
+}
+
+.lr-eye-btn{
+  position:absolute;
+  right: 10px;
+  top: 36px;
+  height: 34px;
+  width: 38px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.18);
+  color: var(--lr-text);
+  border-radius: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+
+.lr-eye-btn:hover{ background: rgba(0,0,0,.26); }
+
+.lr-meter{
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  overflow:hidden;
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.lr-meter > div{
+  height:100%;
+  width: 0%;
+  background: rgba(79,157,252,.85);
+  transition: width .2s ease;
+}
+
+.lr-req{
+  margin: 10px 0 0;
+  padding-left: 16px;
+  color: var(--lr-text-muted);
+  font-size: .95rem;
+}
+
+.lr-req li.ok{ color: rgba(59,230,120,.95); }
+.lr-req li.bad{ color: rgba(255,122,122,.95); }
+
+.lr-inline{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.lr-invite{
+  display:none;
+}
+.lr-invite.show{
+  display:block;
+}
+
+.lr-badge{ display:inline-block; padding:.25rem .5rem; border-radius:999px; font-size:.78rem; font-weight:800; letter-spacing:.2px; }
+.lr-badge-good{ background: rgba(59,230,120,.18); color: rgba(59,230,120,.95); border: 1px solid rgba(59,230,120,.28); }
+.lr-badge-warning{ background: rgba(247,210,62,.18); color: rgba(247,210,62,.95); border: 1px solid rgba(247,210,62,.28); }
+.lr-badge-danger{ background: rgba(255,122,122,.18); color: rgba(255,122,122,.95); border: 1px solid rgba(255,122,122,.28); }
+.lr-badge-neutral{ background: rgba(255,255,255,.10); color: rgba(255,255,255,.85); border: 1px solid rgba(255,255,255,.14); }

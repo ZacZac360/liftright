@@ -106,7 +106,7 @@ def extract_video(video_path: Path, exercise: str):
             mid_hp_x = (LHP[0] + RHP[0]) / 2.0
             trunk_offset_norm = safe_div((mid_sh_x - mid_hp_x), shoulder_width)
 
-            # Right-arm angles (we’ll store both arms so we can choose later)
+            # Right-arm angles (we'll store both arms so we can choose later)
             right_elbow_angle = calculate_angle(
                 (RSH[0], RSH[1]),
                 (REL[0], REL[1]),
