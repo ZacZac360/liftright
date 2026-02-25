@@ -47,109 +47,21 @@ require __DIR__ . '/../includes/head.php';
     min-height: 0; /* allows children to scroll properly */
   }
 
-  /* ---------- Clean single HUD ---------- */
-.lr-hud{
-  position:absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  z-index: 12;
-  pointer-events:none;
-}
-
-.lr-hud-inner{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: .9rem;
-  border: 1px solid var(--lr-border);
-  background: rgba(15,23,42,0.62);
-  backdrop-filter: blur(8px);
-}
-
-.lr-hud-left{
-  min-width: 0;
-  display:flex;
-  flex-direction:column;
-  gap: 8px;
-}
-
-.lr-hud-badges{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 8px;
-}
-
-.lr-hud-text{ min-width: 0; }
-.lr-hud-title{
-  font-weight: 900;
-  font-size: 1.02rem;
-  line-height: 1.15;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.lr-hud-sub{
-  font-size: .82rem;
-  color: var(--lr-text-muted);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  margin-top: 2px;
-}
-
-/* Debug line OFF by default (toggle via JS) */
-.lr-hud-debug{
-  display:none;
-  font-size: .78rem;
-  color: rgba(203,213,225,.85);
-  margin-top: 4px;
-}
-
-/* Small screens: stack phase pill below so it doesn't crush text */
-@media (max-width: 520px){
-  .lr-hud-inner{ flex-direction:column; align-items:stretch; }
-  #uiPhasePill{ align-self:flex-start; }
-}
-
-/* Camera stage: responsive aspect ratio */
-.lr-camera-stage{
-  width: 100%;
-  aspect-ratio: 1 / 1;                 /* default: square-ish */
-  max-height: clamp(340px, 60vh, 720px);
-  border-radius: .75rem;
-  overflow: hidden;
-  background: #000;
-}
-
-/* Tablets / small laptops: slightly wider than square */
-@media (min-width: 768px){
+  /* Camera card consumes height, keeps video visible without page scroll */
   .lr-camera-stage{
-    aspect-ratio: 5 / 4;               /* gentle rectangle */
+    height: clamp(360px, 62vh, 760px);
+    width: 100%;
   }
-}
 
-/* Big screens: go cinematic 16:9 */
-@media (min-width: 1200px){
-  .lr-camera-stage{
-    aspect-ratio: 16 / 9;
-    max-height: clamp(420px, 68vh, 820px);
+  /* On ultra-short screens, keep it usable */
+  @media (max-height: 740px){
+    .lr-camera-stage{ height: clamp(320px, 56vh, 680px); }
   }
-}
 
-/* Short screens: keep it usable */
-@media (max-height: 740px){
-  .lr-camera-stage{
-    max-height: clamp(320px, 56vh, 680px);
+  /* On large desktops, slightly taller camera */
+  @media (min-width: 1200px){
+    .lr-camera-stage{ height: clamp(420px, 68vh, 820px); }
   }
-}
-
-@media (max-width: 520px){
-  .lr-hud-inner{ flex-direction: column; align-items: stretch; }
-  #uiPhasePill{ align-self: flex-start; }
-}
 
   /* Make video/canvas fill stage */
   #video{
@@ -375,23 +287,23 @@ require __DIR__ . '/../includes/head.php';
                 </div>
               </div>
 
+              <!-- Badges -->
+              <div class="position-absolute top-0 start-0 p-3 w-100" style="z-index: 12;">
+                <div class="d-flex flex-wrap gap-2">
+                  <span class="lr-badge lr-badge-good" id="uiReps">Reps: —</span>
+                  <span class="lr-badge lr-badge-warning" id="uiState">State: —</span>
+                  <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
+                </div>
+              </div>
+
               <!-- Instruction bar -->
-              <div class="lr-hud" aria-live="polite">
-                <div class="lr-hud-inner">
-                  <div class="lr-hud-left">
-                    <div class="lr-hud-badges">
-                      <span class="lr-badge lr-badge-good" id="uiReps">Reps: —</span>
-                      <span class="lr-badge lr-badge-warning" id="uiState">State: —</span>
-                      <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
-                    </div>
-
-                    <div class="lr-hud-text">
-                      <div class="lr-hud-title" id="uiInstruction">Press Start to begin.</div>
-                      <div class="lr-hud-sub" id="uiInstructionSub">Warm-up assumed. Use a safe load you can control.</div>
-                      <div class="lr-hud-debug" id="uiDebugLine">state: — | phase: — | conf: —</div>
-                    </div>
+              <div class="lr-instructions-bar" aria-live="polite">
+                <div class="lr-instructions-inner">
+                  <div style="min-width:0;">
+                    <p class="lr-instructions-text mb-0" id="uiInstruction">Press Start to begin.</p>
+                    <p class="lr-instructions-sub mb-0" id="uiInstructionSub">Warm-up assumed. Use a safe load you can control.</p>
+                    <p class="lr-instructions-sub mb-0" id="uiDebugLine" style="opacity:.75;">state: — | phase: — | conf: —</p>
                   </div>
-
                   <span class="lr-mini-pill" id="uiPhasePill">Phase: Idle</span>
                 </div>
               </div>
@@ -629,9 +541,6 @@ require __DIR__ . '/../includes/head.php';
   const guideExerciseText = document.getElementById("guideExerciseText");
   const guideHintLine = document.getElementById("guideHintLine");
 
-  const SHOW_DEBUG = new URLSearchParams(location.search).has("debug");
-  if (uiDebugLine) uiDebugLine.style.display = SHOW_DEBUG ? "block" : "none";
-
   let stream = null;
   let loopTimer = null;
   let inflight = false;
@@ -645,7 +554,7 @@ require __DIR__ . '/../includes/head.php';
   async function loop() {
     if (!loopRunning) return;
     await tick();                 // tick already respects inflight
-    setTimeout(loop, 10);          // backpressure; won’t stack calls
+    setTimeout(loop, 16);          // backpressure; won’t stack calls
   }
 
   function startLoop() {
