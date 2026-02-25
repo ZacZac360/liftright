@@ -1,5 +1,7 @@
 {
-  "state": "stopped",
-  "message": "User closed the tracker.",
-  "timestamp": 1771487560.322357
+  "state": "finished",
+  "exercise": "lateral_raise",
+  "message": "Session finished",
+  "reps_total": 15,
+  "timestamp": 1772007550.051754
 }

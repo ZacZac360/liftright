@@ -769,7 +769,7 @@ class BicepCurlPipeline:
     def __init__(self):
         self.bundle = ModelBundle("bicep_curl")
         self.pose = mp_pose.Pose(
-            static_image_mode=False, model_complexity=0, smooth_landmarks=False,
+            static_image_mode=False, model_complexity=1, smooth_landmarks=True,
             enable_segmentation=False, min_detection_confidence=0.5, min_tracking_confidence=0.5
         )
 
@@ -1090,7 +1090,7 @@ class ShoulderPressPipeline:
     def __init__(self):
         self.bundle = ModelBundle("shoulder_press")
         self.pose = mp_pose.Pose(
-            static_image_mode=False, model_complexity=0, smooth_landmarks=False,
+            static_image_mode=False, model_complexity=1, smooth_landmarks=True,
             enable_segmentation=False, min_detection_confidence=0.5, min_tracking_confidence=0.5
         )
 
@@ -1444,7 +1444,7 @@ class LateralRaisePipeline:
     def __init__(self):
         self.bundle = ModelBundle("lateral_raise")
         self.pose = mp_pose.Pose(
-            static_image_mode=False, model_complexity=0, smooth_landmarks=False,
+            static_image_mode=False, model_complexity=1, smooth_landmarks=True,
             enable_segmentation=False, min_detection_confidence=0.5, min_tracking_confidence=0.5
         )
 
