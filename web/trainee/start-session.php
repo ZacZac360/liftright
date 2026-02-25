@@ -47,21 +47,32 @@ require __DIR__ . '/../includes/head.php';
     min-height: 0; /* allows children to scroll properly */
   }
 
-  /* Camera card consumes height, keeps video visible without page scroll */
+  /* Camera stage: stable shape, no "wide but not tall" */
+.lr-camera-stage{
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9; /* normal */
+  min-height: 340px;
+  max-height: calc(100vh - var(--lr-nav-h, 64px) - 160px);
+}
+
+/* Short-height screens (landscape / small laptop heights): make it taller */
+@media (max-height: 780px){
   .lr-camera-stage{
-    height: clamp(360px, 62vh, 760px);
-    width: 100%;
+    aspect-ratio: 3 / 2; /* slightly squarer than 16:9 */
+    min-height: 260px;
+    max-height: calc(100vh - var(--lr-nav-h, 64px) - 140px);
   }
+}
 
-  /* On ultra-short screens, keep it usable */
-  @media (max-height: 740px){
-    .lr-camera-stage{ height: clamp(320px, 56vh, 680px); }
+/* Very short: go even taller */
+@media (max-height: 680px){
+  .lr-camera-stage{
+    aspect-ratio: 4 / 3; /* more square-ish */
+    min-height: 240px;
+    max-height: calc(100vh - var(--lr-nav-h, 64px) - 120px);
   }
-
-  /* On large desktops, slightly taller camera */
-  @media (min-width: 1200px){
-    .lr-camera-stage{ height: clamp(420px, 68vh, 820px); }
-  }
+}
 
   /* Make video/canvas fill stage */
   #video{
