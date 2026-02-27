@@ -28,7 +28,7 @@ require __DIR__ . '/../includes/head.php';
             <button id="btnStart" class="btn btn-primary btn-lg">Start</button>
             <button id="btnStop" class="btn btn-outline-light btn-lg" disabled>Stop</button>
           </div>
-          <div class="lr-stat-subtext mt-2 text-lg-end" style="opacity:.9;">
+          <div class="lr-stat-subtext mt-2 text-lg-end">
             Tip: Make sure shoulders → hips are visible before starting.
           </div>
         </div>
@@ -58,10 +58,7 @@ require __DIR__ . '/../includes/head.php';
               <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
             </div>
 
-            <div class="p-3 rounded-3"
-                style="border:1px solid var(--lr-border);
-                        background: rgba(15,23,42,0.55);
-                        backdrop-filter: blur(6px);">
+            <div class="lr-instruction-box">
               <div class="lr-section-title mb-1">Instruction</div>
               <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;" id="uiInstruction">
                 Press Start to begin.
@@ -69,7 +66,7 @@ require __DIR__ . '/../includes/head.php';
               <div class="lr-stat-subtext mt-2 mb-0" id="uiInstructionSub">
                 Warm-up assumed. Use a safe load you can control.
               </div>
-              <div class="lr-stat-subtext mt-2 mb-0" id="uiDebugLine" style="opacity:.75;">
+              <div class="lr-stat-subtext mt-2 mb-0" id="uiDebugLine">
                 state: — | phase: — | conf: —
               </div>
             </div>
@@ -113,12 +110,20 @@ require __DIR__ . '/../includes/head.php';
           <div class="position-relative lr-camera-stage lr-camera-center">
             <!-- VIDEO ONLY -->
             <video id="video" autoplay playsinline class="w-100"
-                  style="background:#000; transform: scaleX(-1);"></video>
+                style="transform: scaleX(-1);"></video>
 
             <!-- OVERLAY CANVAS ONLY -->
             <canvas id="overlayCanvas"
                     class="position-absolute top-0 start-0 w-100 h-100"
                     style="pointer-events:none;"></canvas>
+
+            <!-- Big countdown overlay (3..2..1) -->
+            <div id="countdownOverlay"
+                class="position-absolute top-0 start-0 w-100 h-100 d-none"
+                style="pointer-events:none; display:flex; align-items:center; justify-content:center;
+                        background: rgba(0,0,0,.35); font-weight:800; font-size: clamp(64px, 10vw, 140px);
+                        color:#fff; text-shadow: 0 8px 30px rgba(0,0,0,.55);">
+            </div>
 
             <!-- Idle overlay stays on camera -->
             <div class="lr-idle-overlay" id="idleOverlay">
@@ -294,6 +299,8 @@ require __DIR__ . '/../includes/head.php';
   const API_URL = "../api/session_process.php";
   const SESSION_VIEW_URL = "../trainee/session-view.php?log_id=";
 
+  const countdownOverlay = document.getElementById("countdownOverlay");
+  
   const btnStart = document.getElementById("btnStart");
   const btnStop  = document.getElementById("btnStop");
   const exerciseSelect = document.getElementById("exerciseSelect");
@@ -701,11 +708,23 @@ require __DIR__ . '/../includes/head.php';
   }
 
   /* ---------------- Guide modal logic ---------------- */
-  const GUIDE_STEPS = [
-    { title: "Position & framing", text: "Stand back until your shoulders to hips are visible. Face the camera. Keep lighting bright and even.", hint: "Avoid strong backlight (window behind you)." },
-    { title: "Starting posture", text: "Begin in the exercise's neutral start position. Keep the weight controlled throughout the movement.", hint: "Keep elbows/wrists visible in frame." },
-    { title: "Warm-up & safety", text: "Warm-up is assumed. Use a manageable load. Stop if you feel pain or if STOP is recommended.", hint: "If STOP appears, rest or reduce weight before continuing." }
-  ];
+const GUIDE_STEPS = [
+  {
+    title: "Position & framing",
+    text: "Stand back until your shoulders to hips are visible. Face the camera. Keep lighting bright and even.",
+    hint: "Avoid strong backlight (window behind you)."
+  },
+  {
+    title: "Quick guide (GIF placeholders)",
+    text: "Soon: this step will show GIFs of proper vs improper form. For now, keep elbows/wrists visible and move smoothly.",
+    hint: "Tip: keep wrists visible at all times."
+  },
+  {
+    title: "Camera check (required)",
+    text: "Next, we’ll run a framing check ON the live camera screen. Follow prompts to ensure your upper body is fully visible.",
+    hint: "If tracking is low: step back, face camera, increase lighting."
+  }
+];
 
   let guideIndex = 0;
   let countdownTimer = null;
@@ -725,8 +744,19 @@ require __DIR__ . '/../includes/head.php';
     guideBackdrop.style.display = "block";
     guideModal.style.display = "flex";
   }
+  
 
   function closeGuide() {
+    stopGateLoop();
+    resetGate();
+
+    if (!running) {
+      // We were only previewing
+      stopCamera();
+      if (idleOverlay) idleOverlay.style.display = "flex";
+      ovCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+
     if (countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
@@ -734,6 +764,163 @@ require __DIR__ . '/../includes/head.php';
     guideBackdrop.style.display = "none";
     guideModal.style.display = "none";
   }
+
+  let gateTimer = null;
+let gateOkStreak = 0;
+
+// We confirm:
+// 1) upper body landmarks are visible (frame_ok from server)
+// 2) over a few seconds, wrists have reached:
+let gateMemory = { minY: 1.0, minX: 1.0, maxX: 0.0 }; // normalized coords
+let gateLastMsg = "";
+
+function resetGate() {
+  gateOkStreak = 0;
+  gateMemory = { minY: 1.0, minX: 1.0, maxX: 0.0 };
+  gateLastMsg = "";
+}
+
+function stopGateLoop() {
+  if (gateTimer) {
+    clearInterval(gateTimer);
+    gateTimer = null;
+  }
+}
+
+function updateGateMemory(gate) {
+  const w = gate?.wrist;
+  if (!w) return;
+  if (typeof w.min_y === "number") gateMemory.minY = Math.min(gateMemory.minY, w.min_y);
+  if (typeof w.min_x === "number") gateMemory.minX = Math.min(gateMemory.minX, w.min_x);
+  if (typeof w.max_x === "number") gateMemory.maxX = Math.max(gateMemory.maxX, w.max_x);
+}
+
+// These are the “hands up” + “hands to side” targets (tweak if needed)
+function gateHandsUpOk() {
+  return gateMemory.minY <= 0.12;     // wrists reached near top
+}
+function gateHandsSideOk() {
+  return gateMemory.minX <= 0.10 && gateMemory.maxX >= 0.90; // wrists reached near left/right edges
+}
+
+async function gateTick() {
+  if (!video.videoWidth || !video.videoHeight) return;
+
+  // Capture frame
+  capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+  const frameDataUrl = await canvasToJpegBase64(captureCanvas, 0.5);
+
+  // Ask backend to evaluate landmarks
+  const resp = await api("gate", { frame_dataurl: frameDataUrl });
+  const ok = !!resp.ok;
+  const g = resp.gate || {};
+
+  if (!ok) {
+    gateOkStreak = 0;
+    guideCountdown.textContent = "Framing check: Python gate error";
+    uiInstruction.textContent = "Service error — check Python server.";
+    uiInstructionSub.textContent = "Make sure realtime_server.py is running on port 5101.";
+    return;
+  }
+
+  if (!g.pose_found) {
+    gateOkStreak = 0;
+    guideCountdown.textContent = "Framing check: No person detected (step into view)";
+    uiInstruction.textContent = "Step into view and face the camera.";
+    uiInstructionSub.textContent = "Better lighting helps. Avoid backlight.";
+    return;
+  }
+
+  // Update memory for “hands up” and “hands to side”
+  updateGateMemory(g);
+
+  const frameOk = !!g.frame_ok;
+  const handsUp = gateHandsUpOk();
+  const handsSide = gateHandsSideOk();
+
+  // Build a readable status line
+  const parts = g.parts || {};
+  const missing = [];
+  if (!parts.shoulders) missing.push("shoulders");
+  if (!parts.hips) missing.push("hips");
+  if (!parts.elbows) missing.push("elbows");
+  if (!parts.wrists) missing.push("wrists");
+
+  if (!frameOk) {
+    gateOkStreak = 0;
+    guideCountdown.textContent = `Framing check: Adjust (${missing.length ? "missing " + missing.join(", ") : "reposition"})`;
+    uiInstruction.textContent = "Please create distance from the camera.";
+    uiInstructionSub.textContent = "Keep shoulders → hips visible. Face camera. Improve lighting if needed.";
+    return;
+  }
+
+  // Frame is OK; now require the motion checks (up + sides)
+  if (!handsUp || !handsSide) {
+    gateOkStreak = 0;
+
+    const todo = [];
+    if (!handsUp) todo.push("raise both hands UP");
+    if (!handsSide) todo.push("stretch arms to the SIDES");
+    const msg = `Do this: ${todo.join(" + ")} (don’t leave frame)`;
+
+    guideCountdown.textContent = `Framing check: OK • ${handsUp ? "UP✓" : "UP…"} • ${handsSide ? "SIDE✓" : "SIDE…"}`;
+    uiInstruction.textContent = msg;
+    uiInstructionSub.textContent = "We’re confirming you won’t get cropped during movement.";
+    return;
+  }
+
+  // Everything OK — require a short streak to avoid false positives
+  gateOkStreak += 1;
+  guideCountdown.textContent = `Framing check: CONFIRMED ✓ (${gateOkStreak}/8)`;
+  uiInstruction.textContent = "Perfect — hold for a moment…";
+  uiInstructionSub.textContent = "Starting in 3 seconds.";
+
+  if (gateOkStreak >= 8) {
+    stopGateLoop();
+    await start3sCountdownThenStart();
+  }
+}
+
+async function startGateLoop() {
+  stopGateLoop();
+  resetGate();
+  gateTimer = setInterval(() => {
+    gateTick().catch(() => {
+      gateOkStreak = 0;
+    });
+  }, 250); // ~4 FPS
+}
+
+// Visible 3..2..1 overlay, then starts real session
+async function start3sCountdownThenStart() {
+  let n = 3;
+  if (countdownOverlay) {
+    countdownOverlay.classList.remove("d-none");
+    countdownOverlay.textContent = String(n);
+  }
+
+  guideCountdown.textContent = "Countdown: 3";
+  // Placeholder for audio cues later:
+  // const beep = document.getElementById("audioBeep"); beep?.play();
+
+  await new Promise((resolve) => {
+    const t = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(t);
+        guideCountdown.textContent = "Countdown: GO!";
+        if (countdownOverlay) countdownOverlay.classList.add("d-none");
+        resolve();
+        return;
+      }
+      guideCountdown.textContent = `Countdown: ${n}`;
+      if (countdownOverlay) countdownOverlay.textContent = String(n);
+    }, 1000);
+  });
+
+  closeGuide();
+  await startSessionInternal(); // existing function (creates log + session + starts /frame loop)
+}
 
   function renderGuideStep() {
     const s = GUIDE_STEPS[guideIndex];
@@ -745,9 +932,40 @@ require __DIR__ . '/../includes/head.php';
     btnPrevGuide.disabled = (guideIndex === 0);
 
     const last = (guideIndex === GUIDE_STEPS.length - 1);
+
+    // We no longer use the old "I'm ready → Start (5s)" button for last step.
+    // The gate will auto-confirm then do a 3..2..1 overlay.
     btnNextGuide.style.display = last ? "none" : "";
-    btnReadyGuide.style.display = last ? "" : "none";
+    btnReadyGuide.style.display = "none";
+
+    if (last) {
+      btnReadyGuide.style.display = "";
+      btnReadyGuide.textContent = "Start Camera Check";
+    } else {
+      btnReadyGuide.style.display = "none";
+    }
   }
+
+  async function enterGateMode() {
+  if (running) return;
+
+  // UI state
+  uiPhasePill.textContent = "Phase: Setup";
+  uiInstruction.textContent = "Framing check started.";
+  uiInstructionSub.textContent = "Step back so shoulders → hips are visible.";
+  uiFeedback.textContent = "Tracking...";
+
+  btnStart.disabled = true;
+  btnStop.disabled = false;
+  exerciseSelect.disabled = true;
+
+  if (idleOverlay) idleOverlay.style.display = "none";
+
+  if (!stream) await startCamera();
+  syncCanvasToVideo();
+
+  await startGateLoop();
+}
 
   function startCountdownAndGo() {
     countdownLeft = 5;
@@ -780,7 +998,10 @@ require __DIR__ . '/../includes/head.php';
     guideIndex = Math.min(GUIDE_STEPS.length - 1, guideIndex + 1);
     renderGuideStep();
   });
-  btnReadyGuide.addEventListener("click", startCountdownAndGo);
+  btnReadyGuide.addEventListener("click", async () => {
+    closeGuide();           // close modal
+    await enterGateMode();  // start gate on main screen
+  });
   btnCloseGuide.addEventListener("click", closeGuide);
   guideBackdrop.addEventListener("click", closeGuide);
 
@@ -789,7 +1010,24 @@ require __DIR__ . '/../includes/head.php';
     openGuide();
   });
 
-  btnStop.addEventListener("click", () => stopSession(false));
+  btnStop.addEventListener("click", () => {
+  if (!running) {
+    // Cancel gate mode
+    stopGateLoop();
+    stopCamera();
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+    exerciseSelect.disabled = false;
+
+    uiPhasePill.textContent = "Phase: Idle";
+    uiInstruction.textContent = "Press Start to begin.";
+    uiInstructionSub.textContent = "Warm-up assumed. Use a safe load you can control.";
+    if (idleOverlay) idleOverlay.style.display = "flex";
+    return;
+  }
+
+  stopSession(false);
+});
 
   // Initial UI
   uiReps.textContent = "Reps: —";

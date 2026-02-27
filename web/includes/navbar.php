@@ -7,6 +7,26 @@ $role = $_SESSION['role'] ?? null;
 $full_name = $_SESSION['full_name'] ?? null;
 $user_id = (int)($_SESSION['user_id'] ?? 0);
 
+// --- Theme: ensure session has a theme (lazy-load from DB) ---
+$allowedThemes = ['default','light','dark','contrast'];
+
+if (!isset($_SESSION['theme']) || !in_array($_SESSION['theme'], $allowedThemes, true)) {
+  $_SESSION['theme'] = 'default';
+  if ($user_id > 0 && isset($mysqli) && $mysqli instanceof mysqli) {
+    $stmt = $mysqli->prepare("SELECT theme FROM users WHERE user_id = ? LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($row && !empty($row['theme']) && in_array($row['theme'], $allowedThemes, true)) {
+      $_SESSION['theme'] = $row['theme'];
+    }
+  }
+}
+
+$theme = $_SESSION['theme'];
+
 require_once __DIR__ . '/text_helpers.php';
 
 function initials(string $name): string {
@@ -203,7 +223,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
   };
 }
 ?>
-<nav class="navbar navbar-expand-lg navbar-dark fixed-top liftright-navbar">
+<nav class="navbar navbar-expand-lg fixed-top liftright-navbar">
   <div class="container">
     <a class="navbar-brand d-flex flex-column" href="<?= $BASE_URL ?>/index.php">
       <span class="brand-accent">LiftRight</span>
@@ -294,7 +314,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
               <div class="dropdown-menu dropdown-menu-end lr-drop-panel p-0">
                 <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <div class="fw-semibold">Notifications</div>
-                  <span class="small text-secondary" style="opacity:.85;"><?= (int)$notif_unread ?> unread</span>
+                  <span class="small text-secondary"><?= (int)$notif_unread ?> unread</span>
                 </div>
 
                 <div class="lr-drop-scroll">
@@ -304,7 +324,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                     <?php foreach ($notif_items as $n): ?>
                       <?php
                         $isUnread = ((int)$n['is_read'] === 0);
-                        $rowStyle = $isUnread ? "background: rgba(79,157,252,0.08);" : "";
+                        $rowStyle = $isUnread ? "background: var(--lr-accent-soft);" : "";
                         $log_id = (int)($n['log_id'] ?? 0);
                         $openHref = notif_open_href($BASE_URL, (string)$role, $log_id);
                       ?>
@@ -345,7 +365,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
               <div class="dropdown-menu dropdown-menu-end lr-drop-panel p-0">
                 <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <div class="fw-semibold">Messages</div>
-                  <span class="small text-secondary" style="opacity:.85;"><?= (int)$msg_unread ?> unread</span>
+                  <span class="small text-secondary"><?= (int)$msg_unread ?> unread</span>
                 </div>
 
                 <div class="lr-drop-scroll">
@@ -355,7 +375,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                     <?php foreach ($msg_items as $m): ?>
                       <?php
                         $isUnread = ((int)$m['is_read'] === 0);
-                        $rowStyle = $isUnread ? "background: rgba(79,157,252,0.08);" : "";
+                        $rowStyle = $isUnread ? "background: var(--lr-accent-soft);" : "";
                         $subject = (string)($m['subject'] ?? '');
                         $preview = $subject !== '' ? $subject : lr_snippet((string)$m['body'], 78);
                       ?>
@@ -410,7 +430,20 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
 
               <?php if ($role === 'user'): ?>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/trainee/assign-trainer.php"><i class="fa-regular fa-id-badge me-2"></i>Assign Trainer</a></li>
-              <?php endif; ?>
+                
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="px-3 py-2">
+                  <div class="small fw-semibold mb-1">Theme</div>
+                  <select id="lrThemeSelect" class="form-select form-select-sm">
+                    <option value="default"  <?= $theme==='default' ? 'selected' : '' ?>>Default</option>
+                    <option value="light"    <?= $theme==='light' ? 'selected' : '' ?>>Light</option>
+                    <option value="dark"     <?= $theme==='dark' ? 'selected' : '' ?>>Dark</option>
+                    <option value="contrast" <?= $theme==='contrast' ? 'selected' : '' ?>>High Contrast</option>
+                  </select>
+                </li>
+              
+                <?php endif; ?>
 
               <?php if ($role === 'admin'): ?>
                 <li>
@@ -454,3 +487,32 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
     </div>
   </div>
 </nav>
+
+<script>
+(function(){
+  const sel = document.getElementById('lrThemeSelect');
+  if (!sel) return;
+
+  const base = document.querySelector('meta[name="lr-base-url"]')?.getAttribute('content') || '';
+  sel.addEventListener('change', async () => {
+    const theme = sel.value;
+
+    // apply instantly (no refresh)
+    document.documentElement.setAttribute('data-theme', theme);
+
+    try{
+      const res = await fetch(base + '/api/set-theme.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({theme})
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Save failed');
+    } catch (e) {
+      console.error(e);
+      // fallback: revert select if save failed
+      // (optional) alert('Theme save failed');
+    }
+  });
+})();
+</script>

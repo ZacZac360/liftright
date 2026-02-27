@@ -218,7 +218,7 @@ require __DIR__ . '/../includes/head.php';
             <?php else: ?>
               <div class="list-group list-group-flush">
                 <?php foreach ($recent as $r): ?>
-                  <div class="list-group-item bg-transparent text-white border-secondary">
+                  <div class="list-group-item lr-list-item">
                     <div class="d-flex justify-content-between align-items-center">
                       <div class="fw-semibold">Score: <?= h((string)$r['sus_score']) ?></div>
                       <span class="lr-badge lr-badge-good">SUS</span>

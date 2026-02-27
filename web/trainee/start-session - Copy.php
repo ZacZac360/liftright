@@ -11,221 +11,6 @@ require __DIR__ . '/../includes/head.php';
 ?>
 <body>
 <?php require __DIR__ . '/../includes/navbar.php'; ?>
-
-<style>
-  /* =========================================================
-     FINAL POLISH: responsive, no-scroll start, no fullscreen
-     ========================================================= */
-
-  /* Bigger max but still sane */
-  .lr-main-wide { max-width: 1760px !important; }
-
-  /* Make the whole screen feel “app-like” (camera is primary) */
-  .lr-live-shell{
-    min-height: calc(100vh - var(--lr-nav-h, 64px));
-    display:flex;
-    flex-direction:column;
-  }
-
-  /* Sticky top bar (title + Start/Stop) always visible */
-  .lr-live-topbar{
-    position: sticky;
-    top: 0;
-    z-index: 1200;
-    backdrop-filter: blur(10px);
-    background: rgba(2,6,23,.65);
-    border: 1px solid rgba(55,65,81,.45);
-    border-radius: 1.25rem;
-    padding: 14px 14px;
-    margin-bottom: 12px;
-  }
-  .lr-live-topbar h1{ margin:0; }
-
-  /* Layout row stretches so camera can use remaining height */
-  .lr-live-row{
-    flex: 1 1 auto;
-    min-height: 0; /* allows children to scroll properly */
-  }
-
-  /* Camera card consumes height, keeps video visible without page scroll */
-  .lr-camera-stage{
-    height: clamp(360px, 62vh, 760px);
-    width: 100%;
-  }
-
-  /* On ultra-short screens, keep it usable */
-  @media (max-height: 740px){
-    .lr-camera-stage{ height: clamp(320px, 56vh, 680px); }
-  }
-
-  /* On large desktops, slightly taller camera */
-  @media (min-width: 1200px){
-    .lr-camera-stage{ height: clamp(420px, 68vh, 820px); }
-  }
-
-  /* Make video/canvas fill stage */
-  #video{
-    height: 100% !important;
-    width: 100% !important;
-    object-fit: cover;
-    border-radius: .75rem;
-  }
-  #overlayCanvas{
-    border-radius: .75rem;
-  }
-
-  /* Side rail should be scrollable, not the whole page */
-  .lr-rail{
-    max-height: calc(100vh - var(--lr-nav-h, 64px) - 120px);
-    overflow:auto;
-    padding-right: 4px;
-  }
-  .lr-rail::-webkit-scrollbar{ width: 8px; }
-  .lr-rail::-webkit-scrollbar-thumb{
-    background: rgba(148,163,184,.35);
-    border-radius: 999px;
-  }
-
-  /* Mobile: keep Start always accessible */
-  @media (max-width: 991.98px){
-    .lr-live-topbar{
-      border-radius: 1rem;
-      padding: 12px;
-    }
-    .lr-camera-stage{ height: clamp(320px, 52vh, 560px); }
-    .lr-rail{
-      max-height: none;
-      overflow: visible;
-    }
-  }
-
-  /* ---------- Guide modal / overlays (keep) ---------- */
-  .lr-modal-backdrop{
-    position:fixed; inset:0; z-index: 2000;
-    background: rgba(2,6,23,0.72);
-    display:none;
-  }
-  .lr-modal{
-    position:fixed; inset:0; z-index: 2010;
-    display:none; align-items:center; justify-content:center;
-    padding: 18px;
-  }
-  .lr-modal-card{
-    width: min(980px, 100%);
-    border: 1px solid var(--lr-border);
-    border-radius: 1.25rem;
-    background: linear-gradient(135deg, rgba(17,27,72,0.98), rgba(26,37,93,0.98) 40%, rgba(35,48,109,0.98) 100%);
-    box-shadow: 0 18px 60px rgba(15, 23, 42, 0.9);
-    overflow:hidden;
-  }
-  .lr-modal-head{
-    padding: 14px 18px;
-    border-bottom: 1px solid rgba(55, 65, 81, 0.7);
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-  }
-  .lr-modal-body{ padding: 16px 18px 18px; }
-  .lr-steps{
-    display:grid;
-    grid-template-columns: 1.25fr 0.9fr;
-    gap: 14px;
-  }
-  @media (max-width: 992px){
-    .lr-steps{ grid-template-columns: 1fr; }
-  }
-  .lr-step-card{
-    border: 1px solid var(--lr-border);
-    border-radius: 1rem;
-    background: rgba(15,23,42,0.55);
-    padding: 14px;
-  }
-  .lr-step-kicker{
-    font-size: .75rem;
-    letter-spacing: .16em;
-    text-transform: uppercase;
-    color: var(--lr-text-muted);
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .lr-step-title{ font-size: 1.15rem; font-weight: 800; margin: 0 0 8px; }
-  .lr-step-text{ color: var(--lr-text-muted); margin: 0; line-height: 1.45; }
-  .lr-mini-pill{
-    display:inline-flex; align-items:center; gap:8px;
-    border: 1px solid var(--lr-border);
-    border-radius: 999px;
-    padding: .25rem .6rem;
-    font-size: .8rem;
-    color: var(--lr-text);
-    background: rgba(2,6,23,0.35);
-  }
-  .lr-countdown-wrap{
-    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
-    padding-top: 10px;
-  }
-  .lr-countdown{
-    font-weight: 900;
-    font-size: 1.25rem;
-    letter-spacing: .08em;
-  }
-
-  /* ---------- In-camera instruction tag ---------- */
-  .lr-instructions-bar{
-    position:absolute;
-    top: 56px;
-    left: 12px;
-    right: 12px;
-    z-index: 10;
-    pointer-events:none;
-  }
-  .lr-instructions-inner{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding: 10px 12px;
-    border-radius: .85rem;
-    border: 1px solid var(--lr-border);
-    background: rgba(15,23,42,0.68);
-    backdrop-filter: blur(6px);
-  }
-  .lr-instructions-text{
-    font-weight: 900;
-    font-size: 1.08rem;
-    letter-spacing: .02em;
-    line-height: 1.2;
-    margin: 0;
-    min-width:0;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-  .lr-instructions-sub{
-    font-size: .8rem;
-    color: var(--lr-text-muted);
-    margin: 0;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-
-  /* ---------- Idle overlay ---------- */
-  .lr-idle-overlay{
-    position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    padding: 18px;
-    z-index: 8;
-    pointer-events:none;
-  }
-  .lr-idle-card{
-    width:min(560px, 100%);
-    border: 1px solid var(--lr-border);
-    border-radius: 1.25rem;
-    background: rgba(2,6,23,0.55);
-    backdrop-filter: blur(6px);
-    padding: 14px 16px;
-    text-align:left;
-  }
-
-  /* Micro polish: make Start primary visually */
-  .lr-btn-group .btn{ white-space:nowrap; }
-</style>
-
 <div class="lr-page-wrapper">
   <div class="container-fluid lr-main-container py-3 lr-main-wide lr-live-shell">
 
@@ -243,102 +28,117 @@ require __DIR__ . '/../includes/head.php';
             <button id="btnStart" class="btn btn-primary btn-lg">Start</button>
             <button id="btnStop" class="btn btn-outline-light btn-lg" disabled>Stop</button>
           </div>
-          <div class="lr-stat-subtext mt-2 text-lg-end" style="opacity:.9;">
+          <div class="lr-stat-subtext mt-2 text-lg-end">
             Tip: Make sure shoulders → hips are visible before starting.
           </div>
         </div>
       </div>
     </div>
 
-    <div class="row g-4 lr-live-row">
+  <div class="row g-4 lr-live-row lr-live-grid">
 
-      <!-- LEFT: BIG CAMERA -->
-      <div class="col-lg-9">
-        <div class="lr-card" id="cameraCard">
+    <!-- LEFT: OVERLAYS / COACHING INFO -->
+    <div class="col-12 col-lg-3 order-2 order-lg-1">
+      <div class="lr-left-stack">
+
+        <!-- Badges + phase -->
+        <div class="lr-card mb-3">
           <div class="lr-card-header d-flex justify-content-between align-items-center">
             <div>
-              <div class="lr-section-title mb-1">Camera</div>
-              <div class="lr-section-heading mb-0">Live feed</div>
+              <div class="lr-section-title mb-1">Live Coaching</div>
+              <div class="lr-section-heading mb-0">Overlays</div>
             </div>
-
-            <!-- removed fullscreen -->
-            <span class="lr-mini-pill">Webcam mode</span>
+            <span class="lr-mini-pill" id="uiPhasePill">Phase: Idle</span>
           </div>
 
           <div class="lr-card-body">
-            <div class="position-relative lr-camera-stage">
-
-              <video id="video" autoplay playsinline class="w-100"
-                     style="background:#000; transform: scaleX(-1);"></video>
-
-              <canvas id="overlayCanvas"
-                      class="position-absolute top-0 start-0 w-100 h-100"
-                      style="pointer-events:none;"></canvas>
-
-              <div class="lr-idle-overlay" id="idleOverlay">
-                <div class="lr-idle-card">
-                  <div class="lr-section-title mb-1">Before you start</div>
-                  <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;">
-                    Stand back so your shoulders to hips are visible.
-                  </div>
-                  <div class="lr-stat-subtext mt-2 mb-0">
-                    Press <strong>Start</strong> to view a quick setup guide + a 5-second countdown.
-                  </div>
-                </div>
-              </div>
-
-              <!-- Badges -->
-              <div class="position-absolute top-0 start-0 p-3 w-100" style="z-index: 12;">
-                <div class="d-flex flex-wrap gap-2">
-                  <span class="lr-badge lr-badge-good" id="uiReps">Reps: —</span>
-                  <span class="lr-badge lr-badge-warning" id="uiState">State: —</span>
-                  <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
-                </div>
-              </div>
-
-              <!-- Instruction bar -->
-              <div class="lr-instructions-bar" aria-live="polite">
-                <div class="lr-instructions-inner">
-                  <div style="min-width:0;">
-                    <p class="lr-instructions-text mb-0" id="uiInstruction">Press Start to begin.</p>
-                    <p class="lr-instructions-sub mb-0" id="uiInstructionSub">Warm-up assumed. Use a safe load you can control.</p>
-                    <p class="lr-instructions-sub mb-0" id="uiDebugLine" style="opacity:.75;">state: — | phase: — | conf: —</p>
-                  </div>
-                  <span class="lr-mini-pill" id="uiPhasePill">Phase: Idle</span>
-                </div>
-              </div>
-
-              <!-- Feedback -->
-              <div class="position-absolute bottom-0 start-0 p-3 w-100" style="z-index: 12;">
-                <div class="p-3 rounded-3"
-                     style="border:1px solid var(--lr-border);
-                            background: rgba(15,23,42,0.78);
-                            backdrop-filter: blur(6px);">
-                  <div class="d-flex justify-content-between align-items-start gap-3">
-                    <div style="min-width: 0;">
-                      <div class="lr-section-title mb-1">Feedback</div>
-                      <div class="fw-bold" id="uiFeedback" style="font-size: 1.35rem; line-height: 1.2;">—</div>
-                      <div class="mt-2" id="uiLastRep" style="font-size: 1.05rem; opacity: .95;">—</div>
-                    </div>
-                    <div class="text-end lr-stat-subtext" style="min-width: 180px;">
-                      <div><strong>Exercise:</strong> <span id="uiExerciseMain">bicep_curl</span></div>
-                      <div><strong>Log:</strong> <span id="uiLogIdMain">—</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <span class="lr-badge lr-badge-good" id="uiReps">Reps: —</span>
+              <span class="lr-badge lr-badge-warning" id="uiState">State: —</span>
+              <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
             </div>
 
-            <canvas id="captureCanvas" class="d-none"></canvas>
+            <div class="lr-instruction-box">
+              <div class="lr-section-title mb-1">Instruction</div>
+              <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;" id="uiInstruction">
+                Press Start to begin.
+              </div>
+              <div class="lr-stat-subtext mt-2 mb-0" id="uiInstructionSub">
+                Warm-up assumed. Use a safe load you can control.
+              </div>
+              <div class="lr-stat-subtext mt-2 mb-0" id="uiDebugLine">
+                state: — | phase: — | conf: —
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Feedback (moved from bottom overlay) -->
+        <div class="lr-card">
+          <div class="lr-card-header">
+            <div class="lr-section-title mb-1">Feedback</div>
+            <div class="lr-section-heading mb-0">What to do now</div>
+          </div>
+          <div class="lr-card-body">
+            <div class="fw-bold" id="uiFeedback" style="font-size: 1.35rem; line-height: 1.2;">—</div>
+            <div class="mt-2" id="uiLastRep" style="font-size: 1.05rem; opacity: .95;">—</div>
+
+            <hr class="my-3">
+
+            <div class="lr-stat-subtext">
+              <div><strong>Exercise:</strong> <span id="uiExerciseMain">bicep_curl</span></div>
+              <div><strong>Log:</strong> <span id="uiLogIdMain">—</span></div>
+            </div>
+          </div>
+        </div>
+
       </div>
+    </div>
 
-      <!-- RIGHT: STATUS RAIL (scrolls independently if needed) -->
-      <div class="col-lg-3">
-        <div class="lr-rail">
+    <!-- MIDDLE: CAMERA (CENTERED) -->
+    <div class="col-12 col-lg-6 order-1 order-lg-2">
+      <div class="lr-card" id="cameraCard">
+        <div class="lr-card-header d-flex justify-content-between align-items-center">
+          <div>
+            <div class="lr-section-title mb-1">Camera</div>
+            <div class="lr-section-heading mb-0">Live feed</div>
+          </div>
+          <span class="lr-mini-pill">Webcam mode</span>
+        </div>
 
+        <div class="lr-card-body">
+          <div class="position-relative lr-camera-stage lr-camera-center">
+            <!-- VIDEO ONLY -->
+            <video id="video" autoplay playsinline class="w-100"
+                style="transform: scaleX(-1);"></video>
+
+            <!-- OVERLAY CANVAS ONLY -->
+            <canvas id="overlayCanvas"
+                    class="position-absolute top-0 start-0 w-100 h-100"
+                    style="pointer-events:none;"></canvas>
+
+            <!-- Idle overlay stays on camera -->
+            <div class="lr-idle-overlay" id="idleOverlay">
+              <div class="lr-idle-card">
+                <div class="lr-section-title mb-1">Before you start</div>
+                <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;">
+                  Stand back so your shoulders to hips are visible.
+                </div>
+                <div class="lr-stat-subtext mt-2 mb-0">
+                  Press <strong>Start</strong> to view a quick setup guide + a 5-second countdown.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <canvas id="captureCanvas" class="d-none"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: STATUS RAIL (UNCHANGED) -->
+    <div class="col-12 col-lg-3 order-3 order-lg-3">
+      <div class="lr-rail">
           <div class="lr-card mb-3">
             <div class="lr-card-header">
               <div class="lr-section-title mb-1">Session Setup</div>
@@ -390,7 +190,6 @@ require __DIR__ . '/../includes/head.php';
               </details>
             </div>
           </div>
-
           <div class="lr-card mb-3">
             <div class="lr-card-header">
               <div class="lr-section-title mb-1">Live Status</div>
@@ -425,7 +224,6 @@ require __DIR__ . '/../includes/head.php';
               <div class="lr-stat-subtext"><strong>Session Log ID:</strong> <span id="uiLogIdSide">—</span></div>
             </div>
           </div>
-
         </div><!-- /lr-rail -->
       </div>
     </div>
@@ -501,7 +299,7 @@ require __DIR__ . '/../includes/head.php';
   const captureCanvas = document.getElementById("captureCanvas");
   const overlayCanvas = document.getElementById("overlayCanvas");
 
-  const capCtx = captureCanvas.getContext("2d", { willReadFrequently: true });
+  const capCtx = captureCanvas.getContext("2d");
   const ovCtx  = overlayCanvas.getContext("2d");
 
   // Main overlay (camera)
@@ -548,6 +346,24 @@ require __DIR__ . '/../includes/head.php';
   let logId = 0;
   let sessionToken = "";
   let running = false;
+
+  let loopRunning = false;
+
+  async function loop() {
+    if (!loopRunning) return;
+    await tick();                 // tick already respects inflight
+    setTimeout(loop, 16);          // backpressure; won’t stack calls
+  }
+
+  function startLoop() {
+    if (loopRunning) return;
+    loopRunning = true;
+    loop();
+  }
+
+  function stopLoop() {
+    loopRunning = false;
+  }
 
   const annotatedImg = new Image();
   let annotatedBusy = false;
@@ -602,16 +418,24 @@ require __DIR__ . '/../includes/head.php';
   }
 
   function syncCanvasToVideo() {
-    const w = video.videoWidth || 1280;
-    const h = video.videoHeight || 720;
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
 
-    if (captureCanvas.width !== w || captureCanvas.height !== h) {
-      captureCanvas.width = w;
-      captureCanvas.height = h;
+    // Overlay matches real video resolution (for correct drawing)
+    if (overlayCanvas.width !== vw || overlayCanvas.height !== vh) {
+      overlayCanvas.width = vw;
+      overlayCanvas.height = vh;
     }
-    if (overlayCanvas.width !== w || overlayCanvas.height !== h) {
-      overlayCanvas.width = w;
-      overlayCanvas.height = h;
+
+    // Capture canvas = smaller inference resolution (BIG perf win)
+    const TARGET_W = 640; // try 512 if you want even faster
+    const scale = Math.min(1, TARGET_W / vw);
+    const cw = Math.round(vw * scale);
+    const ch = Math.round(vh * scale);
+
+    if (captureCanvas.width !== cw || captureCanvas.height !== ch) {
+      captureCanvas.width = cw;
+      captureCanvas.height = ch;
     }
   }
 
@@ -627,7 +451,7 @@ require __DIR__ . '/../includes/head.php';
     video.onloadedmetadata = () => syncCanvasToVideo();
 
     // annotated drawn on overlay
-    video.style.visibility = "hidden";
+    video.style.visibility = "visible";
   }
 
   function stopCamera() {
@@ -722,14 +546,27 @@ require __DIR__ . '/../includes/head.php';
     }
   }
 
+  function canvasToJpegBase64(canvas, quality = 0.5) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error("toBlob failed"));
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result); // data:image/jpeg;base64,...
+        r.onerror = () => reject(new Error("FileReader failed"));
+        r.readAsDataURL(blob);
+      }, "image/jpeg", quality);
+    });
+  }
+
   async function tick() {
     if (!running || inflight) return;
     if (!video.videoWidth || !video.videoHeight) return;
 
     inflight = true;
     try {
+      // inside tick():
       capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      const frameDataUrl = captureCanvas.toDataURL("image/jpeg", 0.6);
+      const frameDataUrl = await canvasToJpegBase64(captureCanvas, 0.5);
 
       const resp = await api("frame", {
         log_id: logId,
@@ -812,7 +649,7 @@ require __DIR__ . '/../includes/head.php';
     uiInstructionSub.textContent = "Warm-up assumed. Use a safe load you can control.";
     uiPhasePill.textContent = "Phase: tracking";
 
-    loopTimer = setInterval(tick, 125);
+    startLoop();
   }
 
   function goToSessionView(logIdToOpen) {
@@ -828,10 +665,7 @@ require __DIR__ . '/../includes/head.php';
     running = false;
     inflight = false;
 
-    if (loopTimer) {
-      clearInterval(loopTimer);
-      loopTimer = null;
-    }
+    stopLoop();
 
     stopCamera();
     ovCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);

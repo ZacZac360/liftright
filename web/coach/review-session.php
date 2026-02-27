@@ -236,7 +236,7 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-stat-label">Trainee</div>
             <div class="fw-semibold fs-5"><?= h((string)$session['trainee_name']) ?></div>
             <div class="lr-stat-subtext"><?= h((string)$session['trainee_email']) ?></div>
-            <hr class="border-secondary my-3">
+            <hr class="my-3 lr-hr">
             <div class="lr-stat-label">Exercise</div>
             <div><span class="lr-chip-exercise"><?= h(formatExercise((string)$session['exercise_type'])) ?></span></div>
             <div class="lr-stat-subtext mt-2">Date: <?= h(fmtDT((string)$session['created_at'])) ?></div>
@@ -253,7 +253,7 @@ require __DIR__ . '/../includes/head.php';
               <span class="<?= h(formBadge($pct)) ?>"><?= (int)$pct ?>%</span>
             </div>
             <div class="lr-stat-subtext mt-2"><?= (int)$good ?> good / <?= (int)$total ?> total reps</div>
-            <hr class="border-secondary my-3">
+            <hr class="my-3 lr-hr">
             <div class="lr-stat-label">Fatigue flag</div>
             <div class="mt-1">
               <span class="<?= h(fatigueBadge((int)$session['fatigue_flag'])) ?>">
@@ -272,7 +272,7 @@ require __DIR__ . '/../includes/head.php';
               <?= $session['processing_ms'] === null ? '—' : h((string)$session['processing_ms'] . ' ms') ?>
             </div>
             <div class="lr-stat-subtext">Python processing time saved on finish.</div>
-            <hr class="border-secondary my-3">
+            <hr class="my-3 lr-hr">
             <div class="lr-stat-label">Errors counted</div>
             <div class="lr-stat-value mt-1"><?= (int)($session['form_error_count'] ?? 0) ?></div>
             <div class="lr-stat-subtext">Total form_error_count.</div>
@@ -338,7 +338,7 @@ require __DIR__ . '/../includes/head.php';
             <?php else: ?>
               <div class="list-group list-group-flush">
                 <?php foreach ($feedback as $f): ?>
-                  <div class="list-group-item bg-transparent text-white border-secondary">
+                  <div class="list-group-item lr-list-item">
                     <div class="d-flex justify-content-between align-items-center">
                       <div class="fw-semibold text-capitalize">
                         <?= h((string)$f['feedback_type']) ?> • <?= h((string)$f['severity']) ?>

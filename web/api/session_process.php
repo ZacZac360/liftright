@@ -101,6 +101,22 @@ if ($action === 'frame') {
   exit;
 }
 
+if ($action === 'gate') {
+  $frame  = (string)($input['frame_dataurl'] ?? '');
+  if ($frame === '') json_fail("Missing gate frame payload.");
+
+  $resp = http_post_json(PY_SERVER . "/gate", [
+    'frame_dataurl' => $frame
+  ]);
+
+  if (!$resp['ok'] || !is_array($resp['data'])) {
+    json_fail("Python gate failed.", 500);
+  }
+
+  echo json_encode(['success' => true] + $resp['data']);
+  exit;
+}
+
 if ($action === 'finish') {
   $log_id = (int)($input['log_id'] ?? 0);
   $token  = (string)($input['session_token'] ?? '');

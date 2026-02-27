@@ -69,7 +69,7 @@ GOOD_COLOR = (0, 255, 0)
 WARN_COLOR = (0, 255, 255)
 BAD_COLOR  = (0, 0, 255)
 TEXT_COLOR = (240, 240, 240)
-NEUTRAL_COLOR = (160, 160, 160)
+NEUTRAL_COLOR = (0, 200, 0)
 
 mp_pose = mp.solutions.pose
 mp_draw = mp.solutions.drawing_utils
@@ -1873,7 +1873,90 @@ PIPE_BC = BicepCurlPipeline()
 PIPE_SP = ShoulderPressPipeline()
 PIPE_LR = LateralRaisePipeline()
 
+# Lightweight pose model for onboarding gate (no session)
+GATE_POSE = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=0,
+    smooth_landmarks=False,
+    enable_segmentation=False,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
+
 SESSIONS: Dict[str, Any] = {}
+
+def _lm_ok(lm, idx, edge=0.02, vis_thr=0.55):
+    """Landmark must be visible enough and not too close to the frame edge."""
+    try:
+        p = lm[idx]
+        if getattr(p, "visibility", 0.0) < vis_thr:
+            return False
+        if p.x < edge or p.x > (1.0 - edge):
+            return False
+        if p.y < edge or p.y > (1.0 - edge):
+            return False
+        return True
+    except Exception:
+        return False
+
+def gate_eval(frame_bgr):
+    """Return gate info for client-side onboarding."""
+    if frame_bgr is None:
+        return {"pose_found": False, "frame_ok": False, "parts": {}, "wrist": {}}
+
+    h, w = frame_bgr.shape[:2]
+    rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    res = GATE_POSE.process(rgb)
+
+    if not res.pose_landmarks:
+        return {
+            "pose_found": False,
+            "frame_ok": False,
+            "parts": {"shoulders": False, "hips": False, "elbows": False, "wrists": False},
+            "wrist": {}
+        }
+
+    lm = res.pose_landmarks.landmark
+
+    # Required upper-body landmarks
+    LSH = mp_pose.PoseLandmark.LEFT_SHOULDER.value
+    RSH = mp_pose.PoseLandmark.RIGHT_SHOULDER.value
+    LHP = mp_pose.PoseLandmark.LEFT_HIP.value
+    RHP = mp_pose.PoseLandmark.RIGHT_HIP.value
+    LEL = mp_pose.PoseLandmark.LEFT_ELBOW.value
+    REL = mp_pose.PoseLandmark.RIGHT_ELBOW.value
+    LWR = mp_pose.PoseLandmark.LEFT_WRIST.value
+    RWR = mp_pose.PoseLandmark.RIGHT_WRIST.value
+
+    shoulders_ok = _lm_ok(lm, LSH) and _lm_ok(lm, RSH)
+    hips_ok      = _lm_ok(lm, LHP) and _lm_ok(lm, RHP)
+    elbows_ok    = _lm_ok(lm, LEL) and _lm_ok(lm, REL)
+    wrists_ok    = _lm_ok(lm, LWR) and _lm_ok(lm, RWR)
+
+    # Basic “upper body in frame” check
+    frame_ok = shoulders_ok and hips_ok and elbows_ok and wrists_ok
+
+    # Provide wrist coords to allow client to confirm "hands up" + "hands to side" over time
+    lw = lm[LWR]; rw = lm[RWR]
+    wrist = {
+        "lx": float(lw.x), "ly": float(lw.y),
+        "rx": float(rw.x), "ry": float(rw.y),
+        "min_x": float(min(lw.x, rw.x)),
+        "max_x": float(max(lw.x, rw.x)),
+        "min_y": float(min(lw.y, rw.y)),
+    }
+
+    return {
+        "pose_found": True,
+        "frame_ok": bool(frame_ok),
+        "parts": {
+            "shoulders": bool(shoulders_ok),
+            "hips": bool(hips_ok),
+            "elbows": bool(elbows_ok),
+            "wrists": bool(wrists_ok),
+        },
+        "wrist": wrist
+    }
 
 # =========================================================
 # FASTAPI CONTRACT
@@ -1885,6 +1968,9 @@ class StartReq(BaseModel):
 
 class FrameReq(BaseModel):
     session_token: str
+    frame_dataurl: str
+
+class GateReq(BaseModel):
     frame_dataurl: str
 
 class FinishReq(BaseModel):
@@ -1903,6 +1989,15 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"ok": True, "version": VERSION, "exercises": ALLOWED_EXERCISES}
+
+@app.post("/gate")
+def gate(req: GateReq):
+    img = decode_dataurl_to_bgr(req.frame_dataurl)
+    if img is None:
+        return {"ok": False, "error": "Could not decode frame_dataurl."}
+
+    g = gate_eval(img)
+    return {"ok": True, "gate": g}
 
 @app.post("/start")
 def start(req: StartReq):

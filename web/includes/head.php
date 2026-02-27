@@ -4,7 +4,7 @@ if (!isset($page_title)) $page_title = "LiftRight";
 global $BASE_URL;
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="<?= h($_SESSION['theme'] ?? 'default') ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
