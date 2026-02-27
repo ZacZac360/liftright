@@ -159,7 +159,6 @@ $sql = "
     ta.status,
     ta.reviewed_by,
     ta.reviewed_at,
-    ta.review_notes,
     ta.created_at
   FROM trainer_applications ta
   JOIN users u ON u.user_id = ta.user_id

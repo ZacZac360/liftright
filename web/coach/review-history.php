@@ -41,45 +41,35 @@ $rating = in_array($rating, $allowedRatings, true) ? $rating : '';
 $allowedHasNotes = ['0','1'];
 $hasNotes = in_array($hasNotes, $allowedHasNotes, true) ? $hasNotes : '';
 
-/* ---------- Query ---------- */
-$sql = "
-  SELECT
-    er.review_id,
-    er.log_id,
-    er.rating,
-    er.notes,
-    er.created_at AS reviewed_at,
+// Paging
+$page = (int)($_GET['page'] ?? 1);
+$per_page = (int)($_GET['per_page'] ?? 25);
+if ($page < 1) $page = 1;
 
-    tl.exercise_type,
-    tl.created_at AS session_date,
+$allowedPP = [10, 25, 50, 100];
+if (!in_array($per_page, $allowedPP, true)) $per_page = 25;
 
-    u.full_name AS trainee_name,
-    u.email AS trainee_email
-  FROM expert_reviews er
-  LEFT JOIN training_logs tl ON tl.log_id = er.log_id
-  LEFT JOIN users u ON u.user_id = tl.user_id
-  WHERE er.trainer_id = ?
-";
+/* ---------- Query (WHERE builder) ---------- */
+$where = " WHERE er.trainer_id = ? ";
 $types = "i";
 $params = [$trainer_id];
 
 if ($exercise !== '') {
-  $sql .= " AND tl.exercise_type = ? ";
+  $where .= " AND tl.exercise_type = ? ";
   $types .= "s";
   $params[] = $exercise;
 }
 if ($rating !== '') {
-  $sql .= " AND er.rating = ? ";
+  $where .= " AND er.rating = ? ";
   $types .= "i";
   $params[] = (int)$rating;
 }
 if ($hasNotes !== '') {
-  if ($hasNotes === '1') $sql .= " AND er.notes IS NOT NULL AND TRIM(er.notes) <> '' ";
-  else                  $sql .= " AND (er.notes IS NULL OR TRIM(er.notes) = '') ";
+  if ($hasNotes === '1') $where .= " AND er.notes IS NOT NULL AND TRIM(er.notes) <> '' ";
+  else                  $where .= " AND (er.notes IS NULL OR TRIM(er.notes) = '') ";
 }
 if ($q !== '') {
-  // search: log_id exact, or name/email partial
-  $sql .= "
+  $where .= "
     AND (
       CAST(er.log_id AS CHAR) = ?
       OR u.full_name LIKE CONCAT('%', ?, '%')
@@ -87,21 +77,70 @@ if ($q !== '') {
     )
   ";
   $types .= "sss";
-  $params[] = $q;
-  $params[] = $q;
-  $params[] = $q;
+  $params[] = $q; $params[] = $q; $params[] = $q;
 }
 
-$sql .= " ORDER BY er.created_at DESC LIMIT 250";
-
-$stmt = $mysqli->prepare($sql);
+/* ---------- Total count ---------- */
+$countSql = "
+  SELECT COUNT(*) AS cnt
+  FROM expert_reviews er
+  LEFT JOIN training_logs tl ON tl.log_id = er.log_id
+  LEFT JOIN users u ON u.user_id = tl.user_id
+  $where
+";
+$stmt = $mysqli->prepare($countSql);
 $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$total_rows = (int)($stmt->get_result()->fetch_assoc()['cnt'] ?? 0);
+$stmt->close();
+
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+
+/* ---------- Page rows ---------- */
+$dataSql = "
+  SELECT
+    er.review_id,
+    er.log_id,
+    er.rating,
+    er.notes,
+    er.created_at AS reviewed_at,
+    tl.exercise_type,
+    tl.created_at AS session_date,
+    u.full_name AS trainee_name,
+    u.email AS trainee_email
+  FROM expert_reviews er
+  LEFT JOIN training_logs tl ON tl.log_id = er.log_id
+  LEFT JOIN users u ON u.user_id = tl.user_id
+  $where
+  ORDER BY er.created_at DESC
+  LIMIT ? OFFSET ?
+";
+
+$dataTypes = $types . "ii";
+$dataParams = $params;
+$dataParams[] = $per_page;
+$dataParams[] = $offset;
+
+$stmt = $mysqli->prepare($dataSql);
+$stmt->bind_param($dataTypes, ...$dataParams);
 $stmt->execute();
 $res = $stmt->get_result();
 
 $reviews = [];
 while ($r = $res->fetch_assoc()) $reviews[] = $r;
 $stmt->close();
+
+/* ---------- URL builder ---------- */
+function build_query(array $overrides = []): string {
+  $q = $_GET;
+  foreach ($overrides as $k => $v) {
+    if ($v === null) unset($q[$k]);
+    else $q[$k] = $v;
+  }
+  return http_build_query($q);
+}
 
 require __DIR__ . '/../includes/head.php';
 ?>
@@ -164,6 +203,17 @@ require __DIR__ . '/../includes/head.php';
               <option value="0" <?= $hasNotes==='0'?'selected':'' ?>>No notes</option>
             </select>
           </div>
+
+          <div class="col-md-2">
+            <label class="form-label lr-stat-label">Per page</label>
+            <select class="form-select" name="per_page">
+              <?php foreach ([10,25,50,100] as $pp): ?>
+                <option value="<?= $pp ?>" <?= ($per_page===$pp)?'selected':'' ?>><?= $pp ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <input type="hidden" name="page" value="1">
 
           <div class="col-12 d-flex gap-2 mt-2">
             <button class="btn btn-outline-light" type="submit">Apply</button>
@@ -253,6 +303,35 @@ require __DIR__ . '/../includes/head.php';
           </table>
         </div>
       </div>
+
+      <div class="d-flex justify-content-between align-items-center p-3">
+  <div class="lr-stat-subtext mb-0">
+    Showing <?= ($total_rows === 0) ? 0 : ($offset + 1) ?>–<?= min($offset + $per_page, $total_rows) ?> of <?= $total_rows ?>
+  </div>
+
+  <nav aria-label="Review history pagination">
+    <ul class="pagination pagination-sm mb-0">
+      <?php
+        $prevDisabled = ($page <= 1) ? ' disabled' : '';
+        $nextDisabled = ($page >= $total_pages) ? ' disabled' : '';
+
+        $prevUrl = $BASE_URL . "/coach/review-history.php?" . build_query(['page' => max(1, $page - 1)]);
+        $nextUrl = $BASE_URL . "/coach/review-history.php?" . build_query(['page' => min($total_pages, $page + 1)]);
+      ?>
+      <li class="page-item<?= $prevDisabled ?>">
+        <a class="page-link" href="<?= $prevDisabled ? '#' : h($prevUrl) ?>">Prev</a>
+      </li>
+
+      <li class="page-item active">
+        <span class="page-link"><?= (int)$page ?>/<?= (int)$total_pages ?></span>
+      </li>
+
+      <li class="page-item<?= $nextDisabled ?>">
+        <a class="page-link" href="<?= $nextDisabled ? '#' : h($nextUrl) ?>">Next</a>
+      </li>
+    </ul>
+  </nav>
+</div>
 
       <?php if ($reviews): ?>
         <div class="lr-card-body">

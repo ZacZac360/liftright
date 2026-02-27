@@ -79,6 +79,46 @@
   // We keep this aligned with your instruction state.
   let lastKnownPhase = "raise"; // "raise" or "lower"
 
+/* =========================
+   SFX SYSTEM
+========================= */
+
+// Preload short audio clips (replace paths later)
+const SFX = {
+  start: new Audio("../assets/sfx/start.mp3"),
+  rep:   new Audio("../assets/sfx/rep.mp3"),
+  coach: new Audio("../assets/sfx/coach.mp3"),
+  stop:  new Audio("../assets/sfx/stop.mp3"),
+};
+
+// Keep them short + not loud
+Object.values(SFX).forEach(a => {
+  a.preload = "auto";
+  a.volume = 0.6; // not ear-shattering
+});
+
+// Prevent overlap spam
+function playSfx(name) {
+  const a = SFX[name];
+  if (!a) return;
+
+  try {
+    a.currentTime = 0; // restart clean
+    a.play().catch(() => {});
+  } catch {}
+}
+
+function sfx(name) { playSfx(name); }
+
+  // For “play only on change” logic
+  let prevStateLower = "";
+  let prevRepNum = 0;
+  let prevLastRepText = "";
+
+  // Cooldown to avoid spam (ms)
+  let lastCoachSfxAt = 0;
+  const COACH_COOLDOWN_MS = 1200;
+
   /* =========================
      VISUAL CONFIG (EDIT HERE)
      Everything scales with canvas size.
@@ -523,6 +563,23 @@
 
       const annotated = resp.annotated_frame_dataurl;
       const status = resp.status || {};
+      
+      const lastRepText = String(status.last_rep_text ?? "");
+      
+      const repNum = toRepNum(status.rep_now) ?? 0;
+      const repJustIncremented = repNum > prevRepNum;
+
+      if (repJustIncremented) {
+        // Coaching overrides rep ding
+        if (lastRepText.includes("COACHING")) {
+          sfx("coach");
+          lastCoachSfxAt = Date.now();
+        } else {
+          sfx("rep");
+        }
+        prevRepNum = repNum;
+      }
+
       drawAnnotatedToOverlay(annotated, status);
 
       const repNow = (status.rep_now ?? "—");
@@ -546,11 +603,22 @@
         : "Tracking...";
       uiLastRep.textContent = status.last_rep_text ?? "—";
 
+      const now = Date.now();
+
       setInstructionsFromStatus(status);
 
-      if (String(state).toLowerCase() === "stop") {
+      const stateLower = String(status.state ?? "").toLowerCase();
+
+      // ✅ HOOK: play stop sound ONLY once on transition into stop
+      if (stateLower === "stop" && prevStateLower !== "stop") {
+        sfx("stop"); // short double-beep
+      }
+      prevStateLower = stateLower;
+
+      if (stateLower === "stop") {
         await stopSession(true);
       }
+
     } catch (e) {
       uiFeedback.textContent = `Error: ${e.message}`;
       uiInstruction.textContent = "Service error — check Python server.";
@@ -843,6 +911,8 @@
     countdownOverlay.classList.remove("d-none");
     countdownOverlay.textContent = String(n);
 
+    sfx("start"); // ✅ HOOK: start sound (short “ready” chirp)
+
     await new Promise((resolve) => {
       const t = setInterval(() => {
         n -= 1;
@@ -880,8 +950,24 @@
   /* =========================
      EVENTS
   ========================= */
+  let audioUnlocked = false;
+
   btnStart.addEventListener("click", () => {
     if (running) return;
+
+    // Unlock audio on first interaction (needed for autoplay restrictions)
+    if (!audioUnlocked) {
+      audioUnlocked = true;
+      Object.values(SFX).forEach(a => {
+        try {
+          a.play().then(() => {
+            a.pause();
+            a.currentTime = 0;
+          }).catch(() => {});
+        } catch {}
+      });
+    }
+
     openGuide();
   });
 

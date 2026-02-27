@@ -11,6 +11,51 @@ $trainee_id = (int)$_SESSION['user_id'];
 $err = '';
 $msg = '';
 
+// --- AJAX: trainer search (max 5 initial, else search query) ---
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'trainer_search') {
+  header('Content-Type: application/json');
+
+  $q = trim((string)($_GET['q'] ?? ''));
+
+  if ($q !== '') {
+    $stmt = $mysqli->prepare("
+      SELECT user_id, full_name, email
+      FROM users
+      WHERE role='trainer'
+        AND (account_status IS NULL OR account_status='approved')  -- safe if column exists
+        AND (full_name LIKE CONCAT('%', ?, '%') OR email LIKE CONCAT('%', ?, '%'))
+      ORDER BY full_name
+      LIMIT 10
+    ");
+    $stmt->bind_param("ss", $q, $q);
+  } else {
+    $stmt = $mysqli->prepare("
+      SELECT user_id, full_name, email
+      FROM users
+      WHERE role='trainer'
+        AND (account_status IS NULL OR account_status='approved')
+      ORDER BY created_at DESC
+      LIMIT 5
+    ");
+  }
+
+  $stmt->execute();
+  $res = $stmt->get_result();
+
+  $out = [];
+  while ($row = $res->fetch_assoc()) {
+    $out[] = [
+      'user_id' => (int)$row['user_id'],
+      'full_name' => (string)$row['full_name'],
+      'email' => (string)$row['email'],
+    ];
+  }
+  $stmt->close();
+
+  echo json_encode(['success' => true, 'items' => $out]);
+  exit;
+}
+
 function rand_token(int $bytes = 32): string {
   return bin2hex(random_bytes($bytes)); // 64 hex chars when $bytes=32
 }
@@ -80,20 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_invite'])) {
   if ($assigned_trainer_id > 0) {
     $err = "You already have an assigned trainer.";
   } else {
-    $trainer_email = trim((string)($_POST['trainer_email'] ?? ''));
     $trainer_id_in = (int)($_POST['trainer_id'] ?? 0);
 
-    // find trainer
+    // find trainer by selected ID only
     $trainer = null;
     if ($trainer_id_in > 0) {
-      $stmt = $mysqli->prepare("SELECT user_id, full_name FROM users WHERE user_id = ? AND role='trainer' LIMIT 1");
+      $stmt = $mysqli->prepare("
+        SELECT user_id, full_name
+        FROM users
+        WHERE user_id = ? AND role='trainer'
+        LIMIT 1
+      ");
       $stmt->bind_param("i", $trainer_id_in);
-      $stmt->execute();
-      $trainer = $stmt->get_result()->fetch_assoc();
-      $stmt->close();
-    } elseif ($trainer_email !== '') {
-      $stmt = $mysqli->prepare("SELECT user_id, full_name FROM users WHERE email = ? AND role='trainer' LIMIT 1");
-      $stmt->bind_param("s", $trainer_email);
       $stmt->execute();
       $trainer = $stmt->get_result()->fetch_assoc();
       $stmt->close();
@@ -247,19 +290,23 @@ require __DIR__ . '/../includes/head.php';
           </div>
           <div class="lr-card-body">
             <?php if ($assigned_trainer_id > 0): ?>
-              <div class="lr-stat-subtext">Already assigned. (Change-trainer flow can be added later.)</div>
+              <div class="lr-stat-subtext">Already assigned.</div>
             <?php else: ?>
               <form method="post" class="row g-3">
                 <input type="hidden" name="send_invite" value="1">
 
-                <div class="col-md-6">
-                  <label class="form-label lr-stat-label">Trainer email (recommended)</label>
-                  <input class="form-control" name="trainer_email" type="email" placeholder="trainer@example.com">
-                </div>
+                <div class="col-12">
+                  <label class="form-label lr-stat-label">Search trainer</label>
 
-                <div class="col-md-6">
-                  <label class="form-label lr-stat-label">Or trainer ID</label>
-                  <input class="form-control" name="trainer_id" type="number" min="1" placeholder="e.g. 12">
+                  <input class="form-control" id="trainerSearch" type="text"
+                        placeholder="Type name or email… (shows 5 by default)">
+                  <input type="hidden" name="trainer_id" id="trainer_id" value="">
+
+                  <div id="trainerDropdown"
+                      class="list-group mt-2"
+                      style="display:none; max-height: 240px; overflow:auto;"></div>
+
+                  <div class="lr-stat-subtext mt-2" id="trainerPicked" style="display:none;"></div>
                 </div>
 
                 <div class="col-12 d-grid d-md-flex justify-content-md-end">
@@ -283,5 +330,66 @@ require __DIR__ . '/../includes/head.php';
 
   </div>
 </div>
+
+<script>
+(function(){
+  const input = document.getElementById('trainerSearch');
+  const dd = document.getElementById('trainerDropdown');
+  const hid = document.getElementById('trainer_id');
+  const picked = document.getElementById('trainerPicked');
+
+  let t = null;
+
+  function show(items){
+    dd.innerHTML = '';
+    if (!items.length) { dd.style.display='none'; return; }
+    items.forEach(it => {
+      const a = document.createElement('button');
+      a.type = 'button';
+      a.className = 'list-group-item list-group-item-action';
+      a.innerHTML = `<div class="fw-semibold">${escapeHtml(it.full_name)}</div>
+                     <div class="small text-secondary" style="opacity:.9;">${escapeHtml(it.email)} • ID: ${it.user_id}</div>`;
+      a.addEventListener('click', () => {
+        hid.value = it.user_id;
+        input.value = it.full_name + ' — ' + it.email;
+        dd.style.display='none';
+        picked.style.display='block';
+        picked.textContent = 'Selected: ' + it.full_name + ' (' + it.email + ')';
+      });
+      dd.appendChild(a);
+    });
+    dd.style.display='block';
+  }
+
+  function fetchItems(q){
+    fetch('assign-trainer.php?ajax=trainer_search&q=' + encodeURIComponent(q || ''))
+      .then(r => r.json())
+      .then(j => show((j && j.items) ? j.items : []))
+      .catch(()=> dd.style.display='none');
+  }
+
+  // initial load: show 5 on focus
+  input.addEventListener('focus', () => fetchItems(''));
+
+  // type-to-search
+  input.addEventListener('input', () => {
+    hid.value = '';
+    picked.style.display='none';
+    clearTimeout(t);
+    t = setTimeout(() => fetchItems(input.value.trim()), 150);
+  });
+
+  // click outside closes
+  document.addEventListener('click', (e) => {
+    if (!dd.contains(e.target) && e.target !== input) dd.style.display='none';
+  });
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
+  }
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

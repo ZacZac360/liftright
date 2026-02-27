@@ -159,16 +159,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* ---------- Filters ---------- */
-$q = trim((string)($_GET['q'] ?? ''));
-$roleFilter = trim((string)($_GET['role'] ?? ''));
+$q            = trim((string)($_GET['q'] ?? ''));
+$roleFilter   = trim((string)($_GET['role'] ?? ''));
 $statusFilter = trim((string)($_GET['status'] ?? ''));
 
-$allowedRoles = ['user','trainer','admin'];
+// Paging (single source of truth)
+$page = (int)($_GET['page'] ?? 1);
+$per_page = (int)($_GET['per_page'] ?? 25);
+if ($page < 1) $page = 1;
+
+$allowedPP = [10,25,50,100];
+if (!in_array($per_page, $allowedPP, true)) $per_page = 25;
+
+$allowedRoles  = ['user','trainer','admin'];
 $allowedStatus = ['pending','approved','rejected','suspended'];
 
+// URL builder for pagination links
+function build_query(array $overrides = []): string {
+  $q = $_GET;
+  foreach ($overrides as $k => $v) {
+    if ($v === null) unset($q[$k]);
+    else $q[$k] = $v;
+  }
+  return http_build_query($q);
+}
+
+/* ---------- Query (COUNT + DATA) ---------- */
 $users = [];
 
-$sql = "
+$baseFrom = "
+  FROM users u
+  LEFT JOIN users t ON t.user_id = u.trainer_id
+  WHERE u.role <> 'admin'
+";
+
+$where = "";
+$types = "";
+$params = [];
+
+if ($q !== '') {
+  $where .= " AND (u.full_name LIKE CONCAT('%', ?, '%')
+               OR u.email LIKE CONCAT('%', ?, '%')
+               OR CAST(u.user_id AS CHAR) = ?)";
+  $types .= "sss";
+  $params[] = $q;
+  $params[] = $q;
+  $params[] = $q;
+}
+
+if (in_array($roleFilter, $allowedRoles, true)) {
+  // Note: base excludes admin already; choosing "admin" will show none (expected)
+  $where .= " AND u.role = ?";
+  $types .= "s";
+  $params[] = $roleFilter;
+}
+
+if (in_array($statusFilter, $allowedStatus, true)) {
+  $where .= " AND u.account_status = ?";
+  $types .= "s";
+  $params[] = $statusFilter;
+}
+
+// COUNT
+$countSql = "SELECT COUNT(*) AS cnt {$baseFrom} {$where}";
+$stmt = $mysqli->prepare($countSql);
+if ($types !== "") {
+  $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$total_rows = (int)($stmt->get_result()->fetch_assoc()['cnt'] ?? 0);
+$stmt->close();
+
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+
+// DATA
+$dataSql = "
   SELECT
     u.user_id,
     u.full_name,
@@ -180,37 +247,19 @@ $sql = "
     t.full_name AS trainer_name,
     u.created_at,
     u.last_login
-  FROM users u
-  LEFT JOIN users t ON t.user_id = u.trainer_id
-  WHERE u.role <> 'admin'
+  {$baseFrom}
+  {$where}
+  ORDER BY u.created_at DESC
+  LIMIT ? OFFSET ?
 ";
-$types = "";
-$params = [];
 
-if ($q !== '') {
-  $sql .= " AND (u.full_name LIKE CONCAT('%', ?, '%') OR u.email LIKE CONCAT('%', ?, '%') OR CAST(u.user_id AS CHAR) = ?)";
-  $types .= "sss";
-  $params[] = $q;
-  $params[] = $q;
-  $params[] = $q;
-}
-if (in_array($roleFilter, $allowedRoles, true)) {
-  $sql .= " AND u.role = ?";
-  $types .= "s";
-  $params[] = $roleFilter;
-}
-if (in_array($statusFilter, $allowedStatus, true)) {
-  $sql .= " AND u.account_status = ?";
-  $types .= "s";
-  $params[] = $statusFilter;
-}
+$types2 = $types . "ii";
+$params2 = $params;
+$params2[] = $per_page;
+$params2[] = $offset;
 
-$sql .= " ORDER BY u.created_at DESC LIMIT 250";
-
-$stmt = $mysqli->prepare($sql);
-if ($types !== "") {
-  $stmt->bind_param($types, ...$params);
-}
+$stmt = $mysqli->prepare($dataSql);
+$stmt->bind_param($types2, ...$params2);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($r = $res->fetch_assoc()) $users[] = $r;
@@ -269,6 +318,17 @@ require __DIR__ . '/../includes/head.php';
             </select>
           </div>
 
+          <div class="col-md-2">
+            <label class="form-label lr-stat-label">Per page</label>
+            <select class="form-select" name="per_page">
+              <?php foreach ([10,25,50,100] as $pp): ?>
+                <option value="<?= $pp ?>" <?= ($per_page===$pp)?'selected':'' ?>><?= $pp ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <input type="hidden" name="page" value="1">
+
           <div class="col-md-2 d-grid">
             <button class="btn btn-primary" type="submit">
               <i class="fa-solid fa-magnifying-glass me-2"></i>Apply
@@ -287,9 +347,12 @@ require __DIR__ . '/../includes/head.php';
       <div class="lr-card-header d-flex justify-content-between align-items-center">
         <div>
           <div class="lr-section-title mb-1">Accounts</div>
-          <div class="lr-section-heading mb-0">Users (max 250)</div>
+          <div class="lr-section-heading mb-0">Users</div>
         </div>
-        <div class="lr-stat-subtext mb-0"><?= (int)count($users) ?> shown</div>
+        <div class="lr-stat-subtext mb-0">
+          Showing <?= ($total_rows === 0) ? 0 : ($offset + 1) ?>–<?= min($offset + $per_page, $total_rows) ?>
+          of <?= (int)$total_rows ?>
+        </div>
       </div>
 
       <div class="lr-card-body p-0">
@@ -409,6 +472,31 @@ require __DIR__ . '/../includes/head.php';
 
           </table>
         </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center p-3 border-top">
+        <div class="lr-stat-subtext mb-0">
+          Page <?= (int)$page ?> of <?= (int)$total_pages ?>
+        </div>
+
+        <nav aria-label="Users pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <?php
+              $prevDisabled = ($page <= 1) ? ' disabled' : '';
+              $nextDisabled = ($page >= $total_pages) ? ' disabled' : '';
+
+              $prevUrl = $BASE_URL . "/admin/users.php?" . build_query(['page' => max(1, $page - 1)]);
+              $nextUrl = $BASE_URL . "/admin/users.php?" . build_query(['page' => min($total_pages, $page + 1)]);
+            ?>
+            <li class="page-item<?= $prevDisabled ?>">
+              <a class="page-link" href="<?= $prevDisabled ? '#' : h($prevUrl) ?>">Prev</a>
+            </li>
+
+            <li class="page-item<?= $nextDisabled ?>">
+              <a class="page-link" href="<?= $nextDisabled ? '#' : h($nextUrl) ?>">Next</a>
+            </li>
+          </ul>
+        </nav>
       </div>
 
       <div class="lr-card-body">

@@ -996,3 +996,26 @@ select option {
   color: #000;          /* force readable */
   background: #fff;     /* system dropdown is usually white */
 }
+
+.lr-auth-panel {
+  display: none;
+}
+
+.lr-auth-panel.active {
+  display: block;
+}
+
+.lr-auth-tab {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--lr-text-muted);
+}
+
+.lr-auth-tab.active {
+  color: #fff;
+  border-bottom: 2px solid #4f8cff;
+}
+
