@@ -983,3 +983,16 @@ html[data-theme="contrast"] .lr-modal-card{
   outline: 2px solid rgba(255,255,255,0.75);
 }
 html[data-theme="contrast"] .lr-badge{ font-weight: 900; }
+
+/* Force select text color properly */
+select,
+.form-select {
+  color: var(--lr-input-fg) !important;
+  background-color: var(--lr-input-bg) !important;
+}
+
+/* Critical: reset option colors for Windows browsers */
+select option {
+  color: #000;          /* force readable */
+  background: #fff;     /* system dropdown is usually white */
+}
