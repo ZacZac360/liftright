@@ -1,4 +1,6 @@
 <?php
+// liftright/web/login.php  (ADMIN-APPROVAL ONLY • NO EMAIL VERIFICATION)
+
 session_start();
 require_once __DIR__ . "/config/config.php";
 require_once __DIR__ . "/config/auth.php";
@@ -20,36 +22,11 @@ if (isset($_GET['status'])) {
   elseif ($s === 'rejected')  $statusMsg = "Your account was rejected. Please contact the administrator.";
   elseif ($s === 'suspended') $statusMsg = "Your account has been suspended.";
 }
+if (isset($_GET['ok'])) {
+  $ok = (string)$_GET['ok'];
+}
 
 /* ---------- Helpers ---------- */
-
-/**
- * Email verification OTP for pending registrations (email_verifications.pending_id).
- * Consumes old unused codes so only ONE is valid.
- */
-function create_pending_email_verification(mysqli $db, int $pending_id, int $ttl_seconds = 900): string {
-  $stmt = $db->prepare("
-    UPDATE email_verifications
-    SET consumed_at = NOW()
-    WHERE pending_id = ? AND consumed_at IS NULL
-  ");
-  $stmt->bind_param("i", $pending_id);
-  $stmt->execute();
-  $stmt->close();
-
-  $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-  $hash = password_hash($code, PASSWORD_DEFAULT);
-
-  $stmt = $db->prepare("
-    INSERT INTO email_verifications (pending_id, token_hash, expires_at)
-    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
-  ");
-  $stmt->bind_param("isi", $pending_id, $hash, $ttl_seconds);
-  $stmt->execute();
-  $stmt->close();
-
-  return $code;
-}
 
 function is_locked(array $u): bool {
   if (empty($u['lock_until'])) return false;
@@ -63,68 +40,6 @@ function ext_from_mime(string $mime): ?string {
     'image/png'       => 'png',
     default           => null
   };
-}
-
-function brevo_send_email(string $toEmail, string $toName, string $subject, string $html): bool {
-  if (!defined('BREVO_API_KEY') || !BREVO_API_KEY) return false;
-  if (!defined('BREVO_SENDER_EMAIL') || !BREVO_SENDER_EMAIL) return false;
-
-  $payload = [
-    "sender" => [
-      "email" => BREVO_SENDER_EMAIL,
-      "name"  => defined('BREVO_SENDER_NAME') ? BREVO_SENDER_NAME : "LiftRight"
-    ],
-    "to" => [[ "email" => $toEmail, "name" => $toName ]],
-    "subject" => $subject,
-    "htmlContent" => $html
-  ];
-
-  $ch = curl_init("https://api.brevo.com/v3/smtp/email");
-  curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => [
-      "accept: application/json",
-      "content-type: application/json",
-      "api-key: " . BREVO_API_KEY,
-    ],
-    CURLOPT_POSTFIELDS => json_encode($payload),
-    CURLOPT_TIMEOUT => 10,
-  ]);
-
-  $resp = curl_exec($ch);
-  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-
-  return ($resp !== false && $code >= 200 && $code < 300);
-}
-
-/**
- * Email verification OTP (email_verifications table).
- * Consumes old unused codes so only ONE is valid.
- */
-function create_email_verification(mysqli $db, int $user_id, int $ttl_seconds = 900): string {
-  $stmt = $db->prepare("
-    UPDATE email_verifications
-    SET consumed_at = NOW()
-    WHERE user_id = ? AND consumed_at IS NULL
-  ");
-  $stmt->bind_param("i", $user_id);
-  $stmt->execute();
-  $stmt->close();
-
-  $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-  $hash = password_hash($code, PASSWORD_DEFAULT);
-
-  $stmt = $db->prepare("
-    INSERT INTO email_verifications (user_id, token_hash, expires_at)
-    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
-  ");
-  $stmt->bind_param("isi", $user_id, $hash, $ttl_seconds);
-  $stmt->execute();
-  $stmt->close();
-
-  return $code;
 }
 
 /* ---------- Handle POST (single page: login or register) ---------- */
@@ -194,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmt->close();
 
           /**
-           * 2) ACCOUNT MUST BE APPROVED BY ADMIN
+           * ACCOUNT MUST BE APPROVED BY ADMIN
            */
           if ((string)$u['account_status'] !== 'approved') {
             header("Location: {$BASE_URL}/login.php?status=" . urlencode((string)$u['account_status']));
@@ -202,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
 
           /**
-           * 4) FULL LOGIN (no 2FA)
+           * FULL LOGIN (no 2FA here; keep your existing behavior)
            */
           session_regenerate_id(true);
           set_auth_session($u);
@@ -224,194 +139,161 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  /* ===================== REGISTER ===================== */
-elseif ($action === 'register') {
+  /* ===================== REGISTER (ADMIN-APPROVAL ONLY; NO EMAIL VERIFICATION) ===================== */
+  elseif ($action === 'register') {
 
-  $reg_role = (string)($_POST['reg_role'] ?? 'user');
-  if (!in_array($reg_role, ['user', 'trainer'], true)) $reg_role = 'user';
+    $reg_role = (string)($_POST['reg_role'] ?? 'user');
+    if (!in_array($reg_role, ['user', 'trainer'], true)) $reg_role = 'user';
 
-  $full  = trim((string)($_POST['full_name'] ?? ''));
-  $email = trim((string)($_POST['reg_email'] ?? ''));
-  $age   = trim((string)($_POST['age'] ?? ''));
+    $full  = trim((string)($_POST['full_name'] ?? ''));
+    $email = trim((string)($_POST['reg_email'] ?? ''));
+    $age   = trim((string)($_POST['age'] ?? ''));
 
-  $pass1 = (string)($_POST['reg_password'] ?? '');
-  $pass2 = (string)($_POST['reg_password2'] ?? '');
+    $pass1 = (string)($_POST['reg_password'] ?? '');
+    $pass2 = (string)($_POST['reg_password2'] ?? '');
 
-  $agree = (string)($_POST['agree'] ?? '');
+    $agree = (string)($_POST['agree'] ?? '');
 
-  // trainer fields
-  $affiliation     = trim((string)($_POST['affiliation'] ?? ''));
-  $credential_type = (string)($_POST['credential_type'] ?? '');
-  $credential_ref  = trim((string)($_POST['credential_ref'] ?? ''));
-  $statement       = trim((string)($_POST['statement'] ?? ''));
+    // trainer fields
+    $affiliation     = trim((string)($_POST['affiliation'] ?? ''));
+    $credential_type = (string)($_POST['credential_type'] ?? '');
+    $credential_ref  = trim((string)($_POST['credential_ref'] ?? ''));
+    $statement       = trim((string)($_POST['statement'] ?? ''));
 
-  if ($agree !== '1') {
-    $err = "You must agree to the Terms & Privacy to continue.";
-  } elseif ($full === "" || $email === "" || $pass1 === "" || $pass2 === "") {
-    $err = "Please complete all required registration fields.";
-  } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $err = "Enter a valid email address.";
-  } elseif ($pass1 !== $pass2) {
-    $err = "Passwords do not match.";
-  } else {
-    $hasLen = strlen($pass1) >= 8;
-    $hasLow = (bool)preg_match('/[a-z]/', $pass1);
-    $hasUp  = (bool)preg_match('/[A-Z]/', $pass1);
-    $hasNum = (bool)preg_match('/\d/', $pass1);
-    $hasSym = (bool)preg_match('/[^A-Za-z0-9]/', $pass1);
+    if ($agree !== '1') {
+      $err = "You must agree to the Terms & Privacy to continue.";
+    } elseif ($full === "" || $email === "" || $pass1 === "" || $pass2 === "") {
+      $err = "Please complete all required registration fields.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      $err = "Enter a valid email address.";
+    } elseif ($pass1 !== $pass2) {
+      $err = "Passwords do not match.";
+    } else {
+      $hasLen = strlen($pass1) >= 8;
+      $hasLow = (bool)preg_match('/[a-z]/', $pass1);
+      $hasUp  = (bool)preg_match('/[A-Z]/', $pass1);
+      $hasNum = (bool)preg_match('/\d/', $pass1);
+      $hasSym = (bool)preg_match('/[^A-Za-z0-9]/', $pass1);
 
-    if (!$hasLen || !$hasLow || !$hasUp || !$hasNum || !$hasSym) {
-      $err = "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.";
+      if (!$hasLen || !$hasLow || !$hasUp || !$hasNum || !$hasSym) {
+        $err = "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.";
+      }
     }
-  }
 
-  // age validation
-  $ageVal = null;
-  if (!$err && $age !== "") {
-    $a = (int)$age;
-    if ($a < 10 || $a > 100) $err = "Enter a realistic age.";
-    else $ageVal = $a;
-  }
+    // age validation
+    $ageVal = null;
+    if (!$err && $age !== "") {
+      $a = (int)$age;
+      if ($a < 10 || $a > 100) $err = "Enter a realistic age.";
+      else $ageVal = $a;
+    }
 
-  // trainer validation
-  $allowed_cred = ['cpt','scs','pt','student','other'];
-  if (!$err && $reg_role === 'trainer') {
-    if ($affiliation === '') $err = "Trainer applications require an affiliation/organization.";
-    elseif (!in_array($credential_type, $allowed_cred, true)) $err = "Select a valid credential type.";
-    elseif ($statement === '' || strlen($statement) < 20) $err = "Please write a short statement (at least ~20 characters).";
+    // trainer validation
+    $allowed_cred = ['cpt','scs','pt','student','other'];
+    if (!$err && $reg_role === 'trainer') {
+      if ($affiliation === '') $err = "Trainer applications require an affiliation/organization.";
+      elseif (!in_array($credential_type, $allowed_cred, true)) $err = "Select a valid credential type.";
+      elseif ($statement === '' || strlen($statement) < 20) $err = "Please write a short statement (at least ~20 characters).";
 
-    if (!$err) {
-      if (!isset($_FILES['proof_file']) || (int)$_FILES['proof_file']['error'] !== UPLOAD_ERR_OK) {
-        $err = "Trainer applications require a proof document (PDF/JPG/PNG).";
-      } else {
-        $size = (int)$_FILES['proof_file']['size'];
-        if ($size <= 0 || $size > 5 * 1024 * 1024) {
-          $err = "Proof file must be under 5MB.";
+      if (!$err) {
+        if (!isset($_FILES['proof_file']) || (int)$_FILES['proof_file']['error'] !== UPLOAD_ERR_OK) {
+          $err = "Trainer applications require a proof document (PDF/JPG/PNG).";
+        } else {
+          $size = (int)$_FILES['proof_file']['size'];
+          if ($size <= 0 || $size > 5 * 1024 * 1024) {
+            $err = "Proof file must be under 5MB.";
+          }
         }
       }
     }
-  }
 
-  if (!$err) {
-    // check duplicates in users
-    $stmt = $mysqli->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $existsUser = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    if (!$err) {
+      // check duplicates in users ONLY
+      $stmt = $mysqli->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
+      $stmt->bind_param("s", $email);
+      $stmt->execute();
+      $existsUser = $stmt->get_result()->fetch_assoc();
+      $stmt->close();
 
-    // check duplicates in pending_registrations
-    $stmt = $mysqli->prepare("SELECT pending_id FROM pending_registrations WHERE email = ? LIMIT 1");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $existsPending = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+      if ($existsUser) {
+        $err = "That email is already registered. Try logging in.";
+      } else {
 
-    if ($existsUser) {
-      $err = "That email is already registered. Try logging in.";
-    } elseif ($existsPending) {
-      $err = "That email has a pending verification. Please verify your email (or wait for the code to expire and resend).";
-    } else {
+        $role = ($reg_role === 'trainer') ? 'trainer' : 'user';
+        $hash = password_hash($pass1, PASSWORD_DEFAULT);
 
-      $role = ($reg_role === 'trainer') ? 'trainer' : 'user';
-      $hash = password_hash($pass1, PASSWORD_DEFAULT);
+        $mysqli->begin_transaction();
 
-      $mysqli->begin_transaction();
+        try {
+          // (Trainer only) save proof file
+          $safeName = null;
+          $mime = null;
 
-      try {
-        // trainer proof (optional)
-        $safeName = null;
-        $mime = null;
+          if ($reg_role === 'trainer') {
+            $uploadDir = __DIR__ . "/uploads/trainer_proofs";
+            if (!is_dir($uploadDir)) {
+              if (!@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+                throw new Exception("Failed to create uploads folder.");
+              }
+            }
 
-        if ($reg_role === 'trainer') {
-          $uploadDir = __DIR__ . "/uploads/trainer_proofs";
-          if (!is_dir($uploadDir)) {
-            if (!@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
-              throw new Exception("Failed to create uploads folder.");
+            $tmpPath = (string)$_FILES['proof_file']['tmp_name'];
+            $mime = function_exists('mime_content_type') ? (string)mime_content_type($tmpPath) : '';
+            $ext = $mime ? ext_from_mime($mime) : null;
+
+            if (!$ext) {
+              $orig = strtolower((string)($_FILES['proof_file']['name'] ?? ''));
+              if (str_ends_with($orig, '.pdf')) $ext = 'pdf';
+              elseif (str_ends_with($orig, '.jpg') || str_ends_with($orig, '.jpeg')) $ext = 'jpg';
+              elseif (str_ends_with($orig, '.png')) $ext = 'png';
+            }
+            if (!$ext) throw new Exception("Invalid proof file type. Use PDF/JPG/PNG.");
+
+            $safeName = "trainerproof_" . bin2hex(random_bytes(8)) . "." . $ext;
+            $dest = $uploadDir . "/" . $safeName;
+
+            if (!move_uploaded_file($tmpPath, $dest)) {
+              throw new Exception("Failed to save proof file. Please try again.");
             }
           }
 
-          $tmpPath = (string)$_FILES['proof_file']['tmp_name'];
-          $mime = function_exists('mime_content_type') ? (string)mime_content_type($tmpPath) : '';
-          $ext = $mime ? ext_from_mime($mime) : null;
+          // create user immediately, but PENDING approval
+          // NOTE: if your `users` table doesn't have `age`, remove it from insert/bind.
+          $stmt = $mysqli->prepare("
+            INSERT INTO users (full_name, email, password_hash, role, age, account_status, twofa_enabled)
+            VALUES (?, ?, ?, ?, ?, 'pending', 0)
+          ");
+          $ageParam = $ageVal; // may be null
+          $stmt->bind_param("ssssi", $full, $email, $hash, $role, $ageParam);
+          $stmt->execute();
+          $newUserId = (int)$stmt->insert_id;
+          $stmt->close();
 
-          if (!$ext) {
-            $orig = strtolower((string)($_FILES['proof_file']['name'] ?? ''));
-            if (str_ends_with($orig, '.pdf')) $ext = 'pdf';
-            elseif (str_ends_with($orig, '.jpg') || str_ends_with($orig, '.jpeg')) $ext = 'jpg';
-            elseif (str_ends_with($orig, '.png')) $ext = 'png';
+          // trainer application row
+          if ($reg_role === 'trainer') {
+            $stmt = $mysqli->prepare("
+              INSERT INTO trainer_applications
+                (user_id, affiliation, credential_type, credential_ref, statement, proof_file, status)
+              VALUES
+                (?, ?, ?, ?, ?, ?, 'pending')
+            ");
+            $stmt->bind_param("isssss", $newUserId, $affiliation, $credential_type, $credential_ref, $statement, $safeName);
+            $stmt->execute();
+            $stmt->close();
           }
-          if (!$ext) throw new Exception("Invalid proof file type. Use PDF/JPG/PNG.");
 
-          $safeName = "trainerproof_pending_" . bin2hex(random_bytes(8)) . "." . $ext;
-          $dest = $uploadDir . "/" . $safeName;
+          $mysqli->commit();
 
-          if (!move_uploaded_file($tmpPath, $dest)) {
-            throw new Exception("Failed to save proof file. Please try again.");
-          }
+          header("Location: {$BASE_URL}/login.php?status=pending&ok=");
+          exit;
+
+        } catch (Throwable $e) {
+          $mysqli->rollback();
+          $err = "Registration failed: " . $e->getMessage();
         }
-
-        // create pending registration
-        $stmt = $mysqli->prepare("
-          INSERT INTO pending_registrations
-            (full_name, email, password_hash, role, age,
-             affiliation, credential_type, credential_ref, statement,
-             proof_file, proof_mime)
-          VALUES
-            (?, ?, ?, ?, ?,
-             ?, ?, ?, ?,
-             ?, ?)
-        ");
-
-        $ageParam = $ageVal; // can be null
-
-        $aff  = ($reg_role === 'trainer') ? $affiliation : null;
-        $ctype= ($reg_role === 'trainer') ? $credential_type : null;
-        $cref = ($reg_role === 'trainer') ? $credential_ref : null;
-        $stmtTxt = ($reg_role === 'trainer') ? $statement : null;
-
-        $stmt->bind_param(
-          "ssssiisssss",
-          $full, $email, $hash, $role, $ageParam,
-          $aff, $ctype, $cref, $stmtTxt,
-          $safeName, $mime
-        );
-
-        $stmt->execute();
-        $pendingId = (int)$stmt->insert_id;
-        $stmt->close();
-
-        // set verify session
-        $_SESSION['pre_verify_pending_id'] = $pendingId;
-
-        // create OTP for pending
-        $otp = create_pending_email_verification($mysqli, $pendingId, 900);
-
-        $sent = brevo_send_email(
-          $email,
-          $full,
-          "LiftRight verification code",
-          "<p>Your LiftRight verification code is:</p>
-           <h2 style='letter-spacing:2px'>{$otp}</h2>
-           <p>This code expires in 15 minutes.</p>"
-        );
-
-        if (!$sent) {
-          $_SESSION['dev_verify_otp'] = $otp; // DEV fallback
-        }
-
-        $mysqli->commit();
-
-        header("Location: {$BASE_URL}/verify-email.php");
-        exit;
-
-      } catch (Throwable $e) {
-        $mysqli->rollback();
-        $err = "Registration failed: " . $e->getMessage();
       }
     }
   }
-}
 
   else {
     $err = "Invalid action.";
@@ -434,7 +316,7 @@ require __DIR__ . "/includes/head.php";
 
       <ul class="lr-auth-bullets">
         <li><span class="lr-dot"></span><span>Role-based access (Trainee / Trainer / Admin)</span></li>
-        <li><span class="lr-dot"></span><span>Email verification on first registration</span></li>
+        <li><span class="lr-dot"></span><span>No email verification (testing mode)</span></li>
         <li><span class="lr-dot"></span><span>Admin approval workflow for accounts</span></li>
       </ul>
     </div>
