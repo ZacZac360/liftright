@@ -3,9 +3,26 @@
 global $BASE_URL;
 global $mysqli;
 
+require_once __DIR__ . '/db_helpers.php';
+
 $role = $_SESSION['role'] ?? null;
 $full_name = $_SESSION['full_name'] ?? null;
 $user_id = (int)($_SESSION['user_id'] ?? 0);
+
+// --- Profile photo (pull latest approved from DB so navbar updates immediately after admin approval) ---
+$profile_photo = null;
+
+if ($user_id > 0 && isset($mysqli) && $mysqli instanceof mysqli) {
+  $stmt = $mysqli->prepare("SELECT profile_photo FROM users WHERE user_id = ? LIMIT 1");
+  $stmt->bind_param("i", $user_id);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+
+  if ($row && !empty($row['profile_photo'])) {
+    $profile_photo = (string)$row['profile_photo']; // e.g. uploads/profile_photos/user_5.jpg
+  }
+}
 
 // --- Theme: ensure session has a theme (lazy-load from DB) ---
 $allowedThemes = ['default','light','dark','contrast'];
@@ -34,27 +51,6 @@ function initials(string $name): string {
   $a = $parts[0][0] ?? 'U';
   $b = $parts[count($parts)-1][0] ?? '';
   return strtoupper($a . $b);
-}
-
-function table_exists(mysqli $db, string $table): bool {
-  static $cache = [];
-  if (isset($cache[$table])) return $cache[$table];
-
-  $stmt = $db->prepare("
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-  ");
-  $stmt->bind_param("s", $table);
-  $stmt->execute();
-  $res = $stmt->get_result();
-  $exists = ($res && $res->num_rows > 0);
-  $stmt->close();
-
-  $cache[$table] = $exists;
-  return $exists;
 }
 
 function pending_trainer_apps_count(mysqli $db): int {
@@ -183,10 +179,19 @@ $notif_items = (isset($mysqli) && $mysqli instanceof mysqli) ? fetch_latest_noti
 $msg_items   = (isset($mysqli) && $mysqli instanceof mysqli) ? fetch_latest_messages($mysqli, $user_id, 5) : [];
 
 /* ---------- Admin badge counts ---------- */
+
 $pending_accounts = (
   $role === 'admin' &&
   isset($mysqli) && $mysqli instanceof mysqli
 ) ? pending_accounts_count($mysqli) : 0;
+
+$pending_unlink_requests = (
+  $role === 'admin' &&
+  isset($mysqli) && $mysqli instanceof mysqli
+) ? pending_unlink_requests_count($mysqli) : 0;
+
+// one badge for the Users tab (pending accounts + unlink requests)
+$users_badge = (int)$pending_accounts + (int)$pending_unlink_requests;
 
 $pending_trainer_apps = (
   $role === 'admin' &&
@@ -263,14 +268,12 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
           <?php elseif ($role === 'admin'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
             
-            <li class="nav-item">
-              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/users.php">
-                Users
-                <?php if ($pending_accounts > 0): ?>
-                  <span class="lr-dot-pill"><?= (int)$pending_accounts ?></span>
-                <?php endif; ?>
-              </a>
-            </li>
+           <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/users.php">
+              Users
+              <?php if ($users_badge > 0): ?>
+                <span class="lr-dot-pill"><?= (int)$users_badge ?></span>
+              <?php endif; ?>
+            </a>
             
             <li class="nav-item">
               <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/trainer-applications.php">
@@ -407,7 +410,20 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                role="button"
                data-bs-toggle="dropdown"
                aria-expanded="false">
-              <div class="avatar-circle"><?= h(initials((string)$full_name)) ?></div>
+              <?php
+                $avatarSrc = '';
+                if (!empty($profile_photo)) {
+                  $avatarSrc = $BASE_URL . '/' . ltrim((string)$profile_photo, '/');
+                }
+              ?>
+              <div class="avatar-circle" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                <?php if ($avatarSrc): ?>
+                  <img src="<?= h($avatarSrc) ?>" alt="Profile photo"
+                      style="width:100%;height:100%;object-fit:cover;display:block;">
+                <?php else: ?>
+                  <?= h(initials((string)$full_name)) ?>
+                <?php endif; ?>
+              </div>
               <div class="d-none d-lg-block small">
                 <div class="fw-semibold"><?= h((string)$full_name) ?></div>
                 <div class="text-secondary" style="opacity:.85;"><?= h((string)$role) ?></div>
@@ -449,8 +465,8 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                 <li>
                   <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= $BASE_URL ?>/admin/users.php">
                     <span><i class="fa-solid fa-users me-2"></i>Users</span>
-                    <?php if ($pending_accounts > 0): ?>
-                      <span class="lr-dot-pill"><?= (int)$pending_accounts ?></span>
+                    <?php if ($users_badge > 0): ?>
+                      <span class="lr-dot-pill"><?= (int)$users_badge ?></span>
                     <?php endif; ?>
                   </a>
                 </li>

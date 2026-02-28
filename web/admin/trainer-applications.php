@@ -50,7 +50,7 @@ $flash_kind = 'dark';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = (string)($_POST['action'] ?? '');
   $app_id = (int)($_POST['app_id'] ?? 0);
-  $notes  = trim((string)($_POST['review_notes'] ?? ''));
+  $notes  = trim((string)($_POST['admin_notes'] ?? ''));
 
   try {
     if ($app_id <= 0) throw new Exception("Invalid application.");
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // Approve application + approve user account (role should already be trainer)
       $stmt = $mysqli->prepare("
         UPDATE trainer_applications
-        SET status='approved', reviewed_by=?, reviewed_at=NOW(), review_notes=?
+        SET status='approved', reviewed_by=?, reviewed_at=NOW(), admin_notes=?
         WHERE app_id=?
       ");
       $stmt->bind_param("isi", $admin_id, $notes, $app_id);
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // Reject application + reject user account
       $stmt = $mysqli->prepare("
         UPDATE trainer_applications
-        SET status='rejected', reviewed_by=?, reviewed_at=NOW(), review_notes=?
+        SET status='rejected', reviewed_by=?, reviewed_at=NOW(), admin_notes=?
         WHERE app_id=?
       ");
       $stmt->bind_param("isi", $admin_id, $notes, $app_id);
@@ -316,8 +316,8 @@ require __DIR__ . '/../includes/head.php';
                     <?php if (!empty($a['reviewed_at'])): ?>
                       <div class="lr-stat-subtext">Reviewed: <?= h(fmtDT((string)$a['reviewed_at'])) ?></div>
                     <?php endif; ?>
-                    <?php if (!empty($a['review_notes'])): ?>
-                      <div class="lr-stat-subtext">Notes: <?= h((string)$a['review_notes']) ?></div>
+                    <?php if (!empty($a['admin_notes'])): ?>
+                      <div class="lr-stat-subtext">Notes: <?= h((string)$a['admin_notes']) ?></div>
                     <?php endif; ?>
                   </td>
 
@@ -337,7 +337,7 @@ require __DIR__ . '/../includes/head.php';
                     <?php if ($status === 'pending'): ?>
                       <form method="POST" class="d-inline-flex gap-2 align-items-center">
                         <input type="hidden" name="app_id" value="<?= $app_id ?>">
-                        <input type="text" name="review_notes" class="form-control form-control-sm"
+                        <input type="text" name="admin_notes" class="form-control form-control-sm"
                                placeholder="Optional notes…" style="width: 180px;">
                         <button class="btn btn-sm btn-outline-success" name="action" value="approve" type="submit"
                                 onclick="return confirm('Approve this trainer application? This will approve the user account too.');">

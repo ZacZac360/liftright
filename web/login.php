@@ -147,7 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $full  = trim((string)($_POST['full_name'] ?? ''));
     $email = trim((string)($_POST['reg_email'] ?? ''));
-    $age   = trim((string)($_POST['age'] ?? ''));
+    $birthdate = trim((string)($_POST['birthdate'] ?? ''));
+    $gender    = trim((string)($_POST['gender'] ?? ''));
 
     $pass1 = (string)($_POST['reg_password'] ?? '');
     $pass2 = (string)($_POST['reg_password2'] ?? '');
@@ -180,12 +181,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    // age validation
-    $ageVal = null;
-    if (!$err && $age !== "") {
-      $a = (int)$age;
-      if ($a < 10 || $a > 100) $err = "Enter a realistic age.";
-      else $ageVal = $a;
+    // birthdate validation (optional)
+    $birthdateVal = null;
+    if (!$err && $birthdate !== "") {
+      $ts = strtotime($birthdate);
+      if (!$ts) $err = "Enter a valid birthdate.";
+      else {
+        $y = (int)date('Y', $ts);
+        $currentY = (int)date('Y');
+        if ($y < 1900 || $y > $currentY) $err = "Enter a realistic birthdate.";
+        else $birthdateVal = date('Y-m-d', $ts);
+      }
+    }
+
+    // gender validation (optional)
+    $genderVal = null;
+    $allowedGender = ['male','female','other','prefer_not_to_say',''];
+    if (!$err && !in_array($gender, $allowedGender, true)) {
+      $err = "Select a valid gender option.";
+    } else {
+      $genderVal = ($gender === '') ? null : $gender;
     }
 
     // trainer validation
@@ -260,11 +275,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           // create user immediately, but PENDING approval
           // NOTE: if your `users` table doesn't have `age`, remove it from insert/bind.
           $stmt = $mysqli->prepare("
-            INSERT INTO users (full_name, email, password_hash, role, age, account_status, twofa_enabled)
-            VALUES (?, ?, ?, ?, ?, 'pending', 0)
+            INSERT INTO users (full_name, email, password_hash, role, birthdate, gender, account_status, twofa_enabled)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', 0)
           ");
-          $ageParam = $ageVal; // may be null
-          $stmt->bind_param("ssssi", $full, $email, $hash, $role, $ageParam);
+          $stmt->bind_param("ssssss", $full, $email, $hash, $role, $birthdateVal, $genderVal);
           $stmt->execute();
           $newUserId = (int)$stmt->insert_id;
           $stmt->close();
@@ -432,10 +446,20 @@ require __DIR__ . "/includes/head.php";
           </div>
 
           <div>
-            <label class="form-label">Age (optional)</label>
-            <input name="age" type="number" min="10" max="100" class="form-control"
-                   placeholder="18"
-                   value="<?= h($_POST['age'] ?? '') ?>">
+            <label class="form-label">Birthdate (optional)</label>
+            <input name="birthdate" type="date" class="form-control"
+                  value="<?= h($_POST['birthdate'] ?? '') ?>">
+          </div>
+
+          <div>
+            <label class="form-label">Gender (optional)</label>
+            <select name="gender" class="form-control">
+              <option value="">Prefer not to say</option>
+              <option value="male" <?= (($_POST['gender'] ?? '')==='male')?'selected':'' ?>>Male</option>
+              <option value="female" <?= (($_POST['gender'] ?? '')==='female')?'selected':'' ?>>Female</option>
+              <option value="other" <?= (($_POST['gender'] ?? '')==='other')?'selected':'' ?>>Other</option>
+              <option value="prefer_not_to_say" <?= (($_POST['gender'] ?? '')==='prefer_not_to_say')?'selected':'' ?>>Prefer not to say</option>
+            </select>
           </div>
 
           <div class="lr-pass-row">

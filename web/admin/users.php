@@ -4,6 +4,7 @@
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../includes/db_helpers.php';
 
 require_role(['admin']);
 
@@ -124,11 +125,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     elseif ($action === 'unlink_trainer') {
-      // only for trainees
+
+      // 1) Unlink user record
       $stmt = $mysqli->prepare("UPDATE users SET trainer_id = NULL WHERE user_id=? AND role='user'");
       $stmt->bind_param("i", $user_id);
       $stmt->execute();
       $stmt->close();
+
+      // 2) Resolve latest unlink request so it stops counting as "pending"
+      if (table_exists($mysqli, 'trainer_invites')) {
+        $stmt = $mysqli->prepare("
+          UPDATE trainer_invites
+          SET status = 'cancelled', responded_at = NOW()
+          WHERE trainee_id = ? AND status = 'unlink_requested'
+          ORDER BY created_at DESC
+          LIMIT 1
+        ");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $stmt->close();
+      }
+
+      // (optional) Notify trainee that unlink was approved (if you want)
+      if ($canNotify) {
+        $type = 'system';
+        $msg  = "Your trainer unlink request has been approved.";
+        $from = $self_id ?: null;
+
+        if ($from) {
+          $ins = $mysqli->prepare("
+            INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+            VALUES (?, ?, ?, ?)
+          ");
+          $ins->bind_param("issi", $user_id, $type, $msg, $from);
+        } else {
+          $ins = $mysqli->prepare("
+            INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+            VALUES (?, ?, ?, NULL)
+          ");
+          $ins->bind_param("iss", $user_id, $type, $msg);
+        }
+        $ins->execute();
+        $ins->close();
+      }
 
       $flash = "Unlinked trainer successfully.";
       $flash_kind = 'success';

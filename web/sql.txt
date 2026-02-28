@@ -1,47 +1,277 @@
-Enter password: ***********
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 2223
-Server version: 8.0.44 MySQL Community Server - GPL
-
-Copyright (c) 2000, 2025, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> use liftright_db
+mysql> use liftright_db;
 Database changed
-mysql> SHOW TABLES;
-+------------------------+
-| Tables_in_liftright_db |
-+------------------------+
-| error_thresholds       |
-| expert_reviews         |
-| feedback               |
-| rep_metrics            |
-| sus_responses          |
-| training_logs          |
-| users                  |
-+------------------------+
+mysql> DESCRIBE auth_audit_logs;
++------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+-------------------+-------------------+
+| Field      | Type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Null | Key | Default           | Extra             |
++------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+-------------------+-------------------+
+| event_id   | bigint                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | NO   | PRI | NULL              | auto_increment    |
+| user_id    | int                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | YES  | MUL | NULL              |                   |
+| event_type | enum('login_success','login_fail','otp_sent','otp_verify_success','otp_verify_fail','logout','password_reset_request','password_reset_success','email_verify_sent','email_verify_success','email_verify_fail','register_pending_created','register_pending_verified','register_pending_expired','register_pending_cancelled','admin_approve_account','admin_reject_account','admin_suspend_account','admin_unsuspend_account','trainer_application_submitted','trainer_application_approved','trainer_application_rejected','profile_change_requested','profile_change_cancelled','profile_change_approved','profile_change_rejected','session_started','session_ended','session_saved','review_submitted','message_sent') | NO   | MUL | NULL              |                   |
+| ip_address | varchar(45)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | YES  |     | NULL              |                   |
+| user_agent | varchar(255)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | YES  |     | NULL              |                   |
+| meta       | json                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | YES  |     | NULL              |                   |
+| created_at | timestamp                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | NO   | MUL | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+-------------------+-------------------+
 7 rows in set (0.00 sec)
 
-mysql> DESCRIBE users;
-+---------------+--------------------------------+------+-----+-------------------+-------------------+
-| Field         | Type                           | Null | Key | Default           | Extra             |
-+---------------+--------------------------------+------+-----+-------------------+-------------------+
-| user_id       | int                            | NO   | PRI | NULL              | auto_increment    |
-| full_name     | varchar(120)                   | NO   |     | NULL              |                   |
-| email         | varchar(190)                   | NO   | UNI | NULL              |                   |
-| password_hash | varchar(255)                   | NO   |     | NULL              |                   |
-| role          | enum('user','trainer','admin') | NO   | MUL | user              |                   |
-| age           | int                            | YES  |     | NULL              |                   |
-| created_at    | timestamp                      | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
-| last_login    | timestamp                      | YES  |     | NULL              |                   |
-| trainer_id    | int                            | YES  | MUL | NULL              |                   |
-+---------------+--------------------------------+------+-----+-------------------+-------------------+
-9 rows in set (0.01 sec)
+mysql> DESCRIBE email_verifications;
++-------------+--------------+------+-----+-------------------+-------------------+
+| Field       | Type         | Null | Key | Default           | Extra             |
++-------------+--------------+------+-----+-------------------+-------------------+
+| verif_id    | bigint       | NO   | PRI | NULL              | auto_increment    |
+| user_id     | int          | YES  | MUL | NULL              |                   |
+| token_hash  | varchar(255) | NO   |     | NULL              |                   |
+| expires_at  | datetime     | NO   | MUL | NULL              |                   |
+| consumed_at | datetime     | YES  | MUL | NULL              |                   |
+| created_at  | timestamp    | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| pending_id  | bigint       | YES  | MUL | NULL              |                   |
++-------------+--------------+------+-----+-------------------+-------------------+
+7 rows in set (0.00 sec)
+
+mysql> DESCRIBE error_thresholds;
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+| Field         | Type                                                | Null | Key | Default           | Extra                                         |
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+| threshold_id  | int                                                 | NO   | PRI | NULL              | auto_increment                                |
+| exercise_type | enum('bicep_curl','shoulder_press','lateral_raise') | NO   | MUL | NULL              |                                               |
+| metric_key    | varchar(80)                                         | NO   |     | NULL              |                                               |
+| compare_op    | enum('>','>=','<','<=')                             | NO   |     | >                 |                                               |
+| metric_value  | float                                               | NO   |     | NULL              |                                               |
+| severity      | enum('info','warning','danger')                     | NO   |     | warning           |                                               |
+| enabled       | tinyint(1)                                          | NO   | MUL | 1                 |                                               |
+| notes         | varchar(255)                                        | YES  |     | NULL              |                                               |
+| updated_at    | timestamp                                           | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
++---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
+9 rows in set (0.00 sec)
+
+mysql> DESCRIBE expert_reviews;
++------------------+-----------+------+-----+-------------------+-------------------+
+| Field            | Type      | Null | Key | Default           | Extra             |
++------------------+-----------+------+-----+-------------------+-------------------+
+| review_id        | bigint    | NO   | PRI | NULL              | auto_increment    |
+| log_id           | bigint    | NO   | MUL | NULL              |                   |
+| trainer_id       | int       | NO   | MUL | NULL              |                   |
+| rating           | tinyint   | YES  |     | NULL              |                   |
+| notes            | text      | YES  |     | NULL              |                   |
+| marked_good_reps | int       | YES  |     | NULL              |                   |
+| marked_bad_reps  | int       | YES  |     | NULL              |                   |
+| created_at       | timestamp | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------------+-----------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> DESCRIBE feedback;
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+| Field         | Type                                     | Null | Key | Default           | Extra             |
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+| feedback_id   | bigint                                   | NO   | PRI | NULL              | auto_increment    |
+| log_id        | bigint                                   | NO   | MUL | NULL              |                   |
+| feedback_type | enum('posture','fatigue','system','tip') | NO   | MUL | posture           |                   |
+| severity      | enum('info','warning','danger')          | NO   |     | info              |                   |
+| feedback_text | text                                     | NO   |     | NULL              |                   |
+| created_at    | timestamp                                | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| feedback_meta | json                                     | YES  |     | NULL              |                   |
++---------------+------------------------------------------+------+-----+-------------------+-------------------+
+7 rows in set (0.00 sec)
+
+mysql> DESCRIBE login_otps;
++-------------+--------------+------+-----+-------------------+-------------------+
+| Field       | Type         | Null | Key | Default           | Extra             |
++-------------+--------------+------+-----+-------------------+-------------------+
+| otp_id      | bigint       | NO   | PRI | NULL              | auto_increment    |
+| user_id     | int          | NO   | MUL | NULL              |                   |
+| otp_hash    | varchar(255) | NO   |     | NULL              |                   |
+| expires_at  | datetime     | NO   | MUL | NULL              |                   |
+| attempts    | int          | NO   |     | 0                 |                   |
+| consumed_at | datetime     | YES  | MUL | NULL              |                   |
+| created_at  | timestamp    | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++-------------+--------------+------+-----+-------------------+-------------------+
+7 rows in set (0.00 sec)
+
+mysql> DESCRIBE messages;
++--------------+--------------+------+-----+-------------------+-------------------+
+| Field        | Type         | Null | Key | Default           | Extra             |
++--------------+--------------+------+-----+-------------------+-------------------+
+| message_id   | bigint       | NO   | PRI | NULL              | auto_increment    |
+| sender_id    | int          | NO   | MUL | NULL              |                   |
+| recipient_id | int          | NO   | MUL | NULL              |                   |
+| subject      | varchar(120) | YES  |     | NULL              |                   |
+| body         | text         | NO   |     | NULL              |                   |
+| log_id       | bigint       | YES  | MUL | NULL              |                   |
+| is_read      | tinyint(1)   | NO   |     | 0                 |                   |
+| created_at   | timestamp    | NO   | MUL | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++--------------+--------------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> DESCRIBE notifications;
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+| Field        | Type                                                           | Null | Key | Default           | Extra             |
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+| notif_id     | bigint                                                         | NO   | PRI | NULL              | auto_increment    |
+| user_id      | int                                                            | NO   | MUL | NULL              |                   |
+| notif_type   | enum('assignment','review_posted','session_uploaded','system') | NO   |     | system            |                   |
+| message      | varchar(255)                                                   | NO   |     | NULL              |                   |
+| log_id       | bigint                                                         | YES  | MUL | NULL              |                   |
+| from_user_id | int                                                            | YES  | MUL | NULL              |                   |
+| is_read      | tinyint(1)                                                     | NO   |     | 0                 |                   |
+| created_at   | timestamp                                                      | NO   | MUL | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> DESCRIBE password_resets;
++-------------+--------------+------+-----+-------------------+-------------------+
+| Field       | Type         | Null | Key | Default           | Extra             |
++-------------+--------------+------+-----+-------------------+-------------------+
+| reset_id    | bigint       | NO   | PRI | NULL              | auto_increment    |
+| user_id     | int          | NO   | MUL | NULL              |                   |
+| token_hash  | varchar(255) | NO   |     | NULL              |                   |
+| expires_at  | datetime     | NO   | MUL | NULL              |                   |
+| consumed_at | datetime     | YES  | MUL | NULL              |                   |
+| created_at  | timestamp    | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++-------------+--------------+------+-----+-------------------+-------------------+
+6 rows in set (0.00 sec)
+
+mysql> DESCRIBE pending_registrations;
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+| Field           | Type                                     | Null | Key | Default           | Extra             |
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+| pending_id      | bigint                                   | NO   | PRI | NULL              | auto_increment    |
+| full_name       | varchar(120)                             | NO   |     | NULL              |                   |
+| email           | varchar(190)                             | NO   | UNI | NULL              |                   |
+| password_hash   | varchar(255)                             | NO   |     | NULL              |                   |
+| role            | enum('user','trainer')                   | NO   |     | user              |                   |
+| age             | int                                      | YES  |     | NULL              |                   |
+| affiliation     | varchar(120)                             | YES  |     | NULL              |                   |
+| credential_type | enum('cpt','scs','pt','student','other') | YES  |     | NULL              |                   |
+| credential_ref  | varchar(190)                             | YES  |     | NULL              |                   |
+| statement       | text                                     | YES  |     | NULL              |                   |
+| proof_file      | varchar(255)                             | YES  |     | NULL              |                   |
+| proof_mime      | varchar(120)                             | YES  |     | NULL              |                   |
+| created_at      | timestamp                                | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+13 rows in set (0.00 sec)
+
+mysql> DESCRIBE profile_change_requests;
++----------------------------+---------------------------------------------------+------+-----+-------------------+-------------------+
+| Field                      | Type                                              | Null | Key | Default           | Extra             |
++----------------------------+---------------------------------------------------+------+-----+-------------------+-------------------+
+| request_id                 | bigint                                            | NO   | PRI | NULL              | auto_increment    |
+| user_id                    | int                                               | NO   | MUL | NULL              |                   |
+| requested_full_name        | varchar(120)                                      | YES  |     | NULL              |                   |
+| requested_email            | varchar(120)                                      | YES  |     | NULL              |                   |
+| requested_age              | int                                               | YES  |     | NULL              |                   |
+| requested_birthdate        | date                                              | YES  |     | NULL              |                   |
+| requested_gender           | enum('male','female','other','prefer_not_to_say') | YES  |     | NULL              |                   |
+| requested_bio              | text                                              | YES  |     | NULL              |                   |
+| requested_profile_photo    | varchar(255)                                      | YES  |     | NULL              |                   |
+| requested_qualification    | varchar(190)                                      | YES  |     | NULL              |                   |
+| requested_years_experience | tinyint unsigned                                  | YES  |     | NULL              |                   |
+| requested_specializations  | json                                              | YES  |     | NULL              |                   |
+| status                     | enum('pending','approved','rejected','cancelled') | NO   |     | pending           |                   |
+| created_at                 | timestamp                                         | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| reviewed_at                | timestamp                                         | YES  |     | NULL              |                   |
+| reviewed_by                | int                                               | YES  | MUL | NULL              |                   |
+| admin_notes                | text                                              | YES  |     | NULL              |                   |
++----------------------------+---------------------------------------------------+------+-----+-------------------+-------------------+
+17 rows in set (0.00 sec)
+
+mysql> DESCRIBE rep_metrics;
++----------------+-------------+------+-----+-------------------+-------------------+
+| Field          | Type        | Null | Key | Default           | Extra             |
++----------------+-------------+------+-----+-------------------+-------------------+
+| rep_id         | bigint      | NO   | PRI | NULL              | auto_increment    |
+| log_id         | bigint      | NO   | MUL | NULL              |                   |
+| rep_index      | int         | NO   |     | NULL              |                   |
+| duration_ms    | int         | YES  |     | NULL              |                   |
+| rom_score      | float       | YES  |     | NULL              |                   |
+| trunk_sway     | float       | YES  |     | NULL              |                   |
+| confidence_avg | float       | YES  |     | NULL              |                   |
+| form_label     | varchar(16) | NO   |     | good              |                   |
+| anomaly_score  | float       | YES  |     | NULL              |                   |
+| created_at     | timestamp   | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| rep_meta       | json        | YES  |     | NULL              |                   |
++----------------+-------------+------+-----+-------------------+-------------------+
+11 rows in set (0.00 sec)
+
+mysql> DESCRIBE sus_responses;
++------------+-----------+------+-----+-------------------+-------------------+
+| Field      | Type      | Null | Key | Default           | Extra             |
++------------+-----------+------+-----+-------------------+-------------------+
+| sus_id     | bigint    | NO   | PRI | NULL              | auto_increment    |
+| user_id    | int       | NO   | MUL | NULL              |                   |
+| q1         | tinyint   | NO   |     | NULL              |                   |
+| q2         | tinyint   | NO   |     | NULL              |                   |
+| q3         | tinyint   | NO   |     | NULL              |                   |
+| q4         | tinyint   | NO   |     | NULL              |                   |
+| q5         | tinyint   | NO   |     | NULL              |                   |
+| q6         | tinyint   | NO   |     | NULL              |                   |
+| q7         | tinyint   | NO   |     | NULL              |                   |
+| q8         | tinyint   | NO   |     | NULL              |                   |
+| q9         | tinyint   | NO   |     | NULL              |                   |
+| q10        | tinyint   | NO   |     | NULL              |                   |
+| sus_score  | float     | YES  |     | NULL              |                   |
+| created_at | timestamp | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------+-----------+------+-----+-------------------+-------------------+
+14 rows in set (0.00 sec)
+
+mysql> DESCRIBE trainer_applications;
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+| Field           | Type                                     | Null | Key | Default           | Extra             |
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+| app_id          | bigint                                   | NO   | PRI | NULL              | auto_increment    |
+| user_id         | int                                      | NO   | MUL | NULL              |                   |
+| affiliation     | varchar(190)                             | NO   |     | NULL              |                   |
+| credential_type | enum('cpt','scs','pt','student','other') | NO   |     | NULL              |                   |
+| credential_ref  | varchar(255)                             | YES  |     | NULL              |                   |
+| statement       | text                                     | NO   |     | NULL              |                   |
+| proof_file      | varchar(255)                             | NO   |     | NULL              |                   |
+| proof_mime      | varchar(80)                              | YES  |     | NULL              |                   |
+| status          | enum('pending','approved','rejected')    | NO   | MUL | pending           |                   |
+| reviewed_by     | int                                      | YES  | MUL | NULL              |                   |
+| reviewed_at     | datetime                                 | YES  |     | NULL              |                   |
+| admin_notes     | varchar(500)                             | YES  |     | NULL              |                   |
+| created_at      | timestamp                                | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++-----------------+------------------------------------------+------+-----+-------------------+-------------------+
+13 rows in set (0.00 sec)
+
+mysql> DESCRIBE trainer_invites;
++--------------+-------------------------------------------------------------+------+-----+-------------------+-------------------+
+| Field        | Type                                                        | Null | Key | Default           | Extra             |
++--------------+-------------------------------------------------------------+------+-----+-------------------+-------------------+
+| invite_id    | bigint                                                      | NO   | PRI | NULL              | auto_increment    |
+| trainee_id   | int                                                         | NO   | MUL | NULL              |                   |
+| trainer_id   | int                                                         | NO   | MUL | NULL              |                   |
+| status       | enum('pending','accepted','declined','cancelled','expired') | NO   |     | pending           |                   |
+| token        | char(64)                                                    | NO   | UNI | NULL              |                   |
+| expires_at   | timestamp                                                   | YES  |     | NULL              |                   |
+| created_at   | timestamp                                                   | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
+| responded_at | timestamp                                                   | YES  |     | NULL              |                   |
++--------------+-------------------------------------------------------------+------+-----+-------------------+-------------------+
+8 rows in set (0.00 sec)
+
+mysql> DESCRIBE trainer_rating_summary;
++--------------+--------------+------+-----+---------+-------+
+| Field        | Type         | Null | Key | Default | Extra |
++--------------+--------------+------+-----+---------+-------+
+| trainer_id   | int          | NO   |     | NULL    |       |
+| avg_rating   | decimal(6,2) | YES  |     | NULL    |       |
+| review_count | bigint       | NO   |     | 0       |       |
++--------------+--------------+------+-----+---------+-------+
+3 rows in set (0.00 sec)
+
+mysql> DESCRIBE trainer_reviews;
++-------------+---------------------------------------+------+-----+-------------------+-----------------------------+
+| Field       | Type                                  | Null | Key | Default           | Extra                       |
++-------------+---------------------------------------+------+-----+-------------------+-----------------------------+
+| review_id   | bigint                                | NO   | PRI | NULL              | auto_increment              |
+| trainer_id  | int                                   | NO   | MUL | NULL              |                             |
+| trainee_id  | int                                   | NO   | MUL | NULL              |                             |
+| rating      | tinyint                               | NO   |     | NULL              |                             |
+| review_text | text                                  | YES  |     | NULL              |                             |
+| status      | enum('pending','approved','rejected') | NO   | MUL | approved          |                             |
+| created_at  | timestamp                             | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED           |
+| updated_at  | timestamp                             | YES  |     | NULL              | on update CURRENT_TIMESTAMP |
++-------------+---------------------------------------+------+-----+-------------------+-----------------------------+
+8 rows in set (0.00 sec)
 
 mysql> DESCRIBE training_logs;
 +------------------+-----------------------------------------------------+------+-----+-------------------+-------------------+
@@ -65,221 +295,6 @@ mysql> DESCRIBE training_logs;
 +------------------+-----------------------------------------------------+------+-----+-------------------+-------------------+
 15 rows in set (0.00 sec)
 
-mysql> DESCRIBE rep_metrics;
-+----------------+-------------+------+-----+-------------------+-------------------+
-| Field          | Type        | Null | Key | Default           | Extra             |
-+----------------+-------------+------+-----+-------------------+-------------------+
-| rep_id         | bigint      | NO   | PRI | NULL              | auto_increment    |
-| log_id         | bigint      | NO   | MUL | NULL              |                   |
-| rep_index      | int         | NO   |     | NULL              |                   |
-| duration_ms    | int         | YES  |     | NULL              |                   |
-| rom_score      | float       | YES  |     | NULL              |                   |
-| trunk_sway     | float       | YES  |     | NULL              |                   |
-| confidence_avg | float       | YES  |     | NULL              |                   |
-| form_label     | varchar(16) | NO   |     | good              |                   |
-| anomaly_score  | float       | YES  |     | NULL              |                   |
-| created_at     | timestamp   | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
-| rep_meta       | json        | YES  |     | NULL              |                   |
-+----------------+-------------+------+-----+-------------------+-------------------+
-11 rows in set (0.00 sec)
+mysql> DESCRIBE users;
 
-mysql> DESCRIBE feedback;
-+---------------+------------------------------------------+------+-----+-------------------+-------------------+
-| Field         | Type                                     | Null | Key | Default           | Extra             |
-+---------------+------------------------------------------+------+-----+-------------------+-------------------+
-| feedback_id   | bigint                                   | NO   | PRI | NULL              | auto_increment    |
-| log_id        | bigint                                   | NO   | MUL | NULL              |                   |
-| feedback_type | enum('posture','fatigue','system','tip') | NO   | MUL | posture           |                   |
-| severity      | enum('info','warning','danger')          | NO   |     | info              |                   |
-| feedback_text | text                                     | NO   |     | NULL              |                   |
-| created_at    | timestamp                                | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
-| feedback_meta | json                                     | YES  |     | NULL              |                   |
-+---------------+------------------------------------------+------+-----+-------------------+-------------------+
-7 rows in set (0.00 sec)
 
-mysql> DESCRIBE expert_reviews;
-+------------------+-----------+------+-----+-------------------+-------------------+
-| Field            | Type      | Null | Key | Default           | Extra             |
-+------------------+-----------+------+-----+-------------------+-------------------+
-| review_id        | bigint    | NO   | PRI | NULL              | auto_increment    |
-| log_id           | bigint    | NO   | MUL | NULL              |                   |
-| trainer_id       | int       | NO   | MUL | NULL              |                   |
-| rating           | tinyint   | YES  |     | NULL              |                   |
-| notes            | text      | YES  |     | NULL              |                   |
-| marked_good_reps | int       | YES  |     | NULL              |                   |
-| marked_bad_reps  | int       | YES  |     | NULL              |                   |
-| created_at       | timestamp | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
-+------------------+-----------+------+-----+-------------------+-------------------+
-8 rows in set (0.00 sec)
-
-mysql> DESCRIBE error_thresholds;
-+---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
-| Field         | Type                                                | Null | Key | Default           | Extra                                         |
-+---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
-| threshold_id  | int                                                 | NO   | PRI | NULL              | auto_increment                                |
-| exercise_type | enum('bicep_curl','shoulder_press','lateral_raise') | NO   | MUL | NULL              |                                               |
-| metric_key    | varchar(80)                                         | NO   |     | NULL              |                                               |
-| compare_op    | enum('>','>=','<','<=')                             | NO   |     | >                 |                                               |
-| metric_value  | float                                               | NO   |     | NULL              |                                               |
-| severity      | enum('info','warning','danger')                     | NO   |     | warning           |                                               |
-| enabled       | tinyint(1)                                          | NO   | MUL | 1                 |                                               |
-| notes         | varchar(255)                                        | YES  |     | NULL              |                                               |
-| updated_at    | timestamp                                           | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
-+---------------+-----------------------------------------------------+------+-----+-------------------+-----------------------------------------------+
-9 rows in set (0.00 sec)
-
-mysql> DESCRIBE sus_responses;
-
-mysql> CREATE TABLE notifications (
-    ->   notif_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    ->   user_id INT NOT NULL,
-    ->   notif_type ENUM('assignment','review_posted','session_uploaded','system') NOT NULL DEFAULT 'system',
-    ->   message VARCHAR(255) NOT NULL,
-    ->   log_id BIGINT NULL,
-    ->   from_user_id INT NULL,
-    ->   is_read TINYINT(1) NOT NULL DEFAULT 0,
-    ->   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ->
-    ->   KEY idx_notif_user_read (user_id, is_read),
-    ->   KEY idx_notif_created (created_at),
-    ->   KEY idx_notif_log (log_id),
-    ->
-    ->   CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    ->   CONSTRAINT fk_notif_from_user FOREIGN KEY (from_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
-    ->   CONSTRAINT fk_notif_log FOREIGN KEY (log_id) REFERENCES training_logs(log_id) ON DELETE SET NULL
-    -> );
-Query OK, 0 rows affected, 1 warning (0.06 sec)
-
-mysql> DESCRIBE notifications;
-+--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
-| Field        | Type                                                           | Null | Key | Default           | Extra             |
-+--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
-| notif_id     | bigint                                                         | NO   | PRI | NULL              | auto_increment    |
-| user_id      | int                                                            | NO   | MUL | NULL              |                   |
-| notif_type   | enum('assignment','review_posted','session_uploaded','system') | NO   |     | system            |                   |
-| message      | varchar(255)                                                   | NO   |     | NULL              |                   |
-| log_id       | bigint                                                         | YES  | MUL | NULL              |                   |
-| from_user_id | int                                                            | YES  | MUL | NULL              |                   |
-| is_read      | tinyint(1)                                                     | NO   |     | 0                 |                   |
-| created_at   | timestamp                                                      | NO   | MUL | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
-+--------------+----------------------------------------------------------------+------+-----+-------------------+-------------------+
-8 rows in set (0.00 sec)
-
-mysql> CREATE TABLE messages (
-    ->   message_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    ->   sender_id INT NOT NULL,
-    ->   recipient_id INT NOT NULL,
-    ->   subject VARCHAR(120) NULL,
-    ->   body TEXT NOT NULL,
-    ->   log_id BIGINT NULL,
-    ->   is_read TINYINT(1) NOT NULL DEFAULT 0,
-    ->   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ->
-    ->   KEY idx_msg_recipient_read (recipient_id, is_read),
-    ->   KEY idx_msg_created (created_at),
-    ->
-    ->   CONSTRAINT fk_msg_sender FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    ->   CONSTRAINT fk_msg_recipient FOREIGN KEY (recipient_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    ->   CONSTRAINT fk_msg_log FOREIGN KEY (log_id) REFERENCES training_logs(log_id) ON DELETE SET NULL
-    -> );
-Query OK, 0 rows affected, 1 warning (0.05 sec)
-
-CREATE TABLE trainer_invites (
-  invite_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-
-  trainee_id INT NOT NULL,
-  trainer_id INT NOT NULL,
-
-  status ENUM('pending','accepted','declined','cancelled','expired') NOT NULL DEFAULT 'pending',
-
-  token CHAR(64) NOT NULL,                 -- used if you want “click link to accept”
-  expires_at TIMESTAMP NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  responded_at TIMESTAMP NULL,
-
-  UNIQUE KEY uniq_pending_pair (trainee_id, trainer_id, status),
-  KEY idx_trainer_status (trainer_id, status),
-  KEY idx_trainee_status (trainee_id, status),
-  UNIQUE KEY uniq_token (token),
-
-  CONSTRAINT fk_inv_trainee FOREIGN KEY (trainee_id) REFERENCES users(user_id) ON DELETE CASCADE,
-  CONSTRAINT fk_inv_trainer FOREIGN KEY (trainer_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
-CREATE TABLE profile_change_requests (
-  request_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-
-  user_id INT NOT NULL,
-  requested_full_name VARCHAR(120) NULL,
-  requested_email VARCHAR(120) NULL,
-  requested_age INT NULL,
-
-  status ENUM('pending','approved','rejected','cancelled') 
-    NOT NULL DEFAULT 'pending',
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  reviewed_at TIMESTAMP NULL,
-  reviewed_by INT NULL, -- admin user_id
-  admin_notes TEXT NULL,
-
-  CONSTRAINT fk_pcr_user 
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-
-  CONSTRAINT fk_pcr_admin 
-    FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
-);
-
-ALTER TABLE users
-ADD COLUMN account_status ENUM('pending','approved','rejected','suspended')
-NOT NULL DEFAULT 'pending';
-
-ALTER TABLE users
-  ADD COLUMN twofa_enabled TINYINT(1) NOT NULL DEFAULT 1,
-  ADD COLUMN failed_login_attempts INT NOT NULL DEFAULT 0,
-  ADD COLUMN lock_until DATETIME NULL,
-  ADD COLUMN last_failed_login TIMESTAMP NULL;
-
-CREATE TABLE IF NOT EXISTS login_otps (
-  otp_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  otp_hash VARCHAR(255) NOT NULL,
-  expires_at DATETIME NOT NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  consumed_at DATETIME NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_login_otps_user
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  KEY idx_login_otps_user (user_id),
-  KEY idx_login_otps_exp (expires_at),
-  KEY idx_login_otps_consumed (consumed_at)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS trainer_applications (
-  app_id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-
-  affiliation VARCHAR(120) NOT NULL,
-  credential_type ENUM('cpt','scs','pt','student','other') NOT NULL,
-  credential_ref VARCHAR(190) NULL,
-  statement TEXT NOT NULL,
-
-  proof_file VARCHAR(255) NOT NULL,
-
-  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  reviewed_by INT NULL,
-  reviewed_at DATETIME NULL,
-  review_notes TEXT NULL,
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT fk_trainer_app_user
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  KEY idx_ta_user (user_id),
-  KEY idx_ta_status (status),
-  KEY idx_ta_created (created_at)
-) ENGINE=InnoDB;

@@ -11,6 +11,29 @@ $page_title = "Profile Requests";
 $admin_id = (int)($_SESSION['user_id'] ?? 0);
 $flash = null;
 
+/* ---------- Helpers ---------- */
+if (!function_exists('h')) {
+  function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+}
+
+function photo_url(?string $relPath, string $BASE_URL): ?string {
+  if (!$relPath) return null;
+  $relPath = str_replace('\\','/', $relPath);
+
+  // only allow uploads paths (prevents weird paths)
+  if (strpos($relPath, 'uploads/') !== 0) return null;
+
+  // verify file exists on disk
+  $rootAbs = realpath(__DIR__ . '/..'); // liftright/web
+  if (!$rootAbs) return null;
+
+  $abs = $rootAbs . '/' . $relPath;
+  if (!is_file($abs)) return null;
+
+  // cache-bust so you see changes immediately
+  return rtrim($BASE_URL, '/') . '/' . $relPath . '?v=' . filemtime($abs);
+}
+
 /* ---------- Actions ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = (string)($_POST['action'] ?? '');
@@ -22,7 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Load request (must still be pending)
     $stmt = $mysqli->prepare("
-      SELECT r.*, u.full_name AS current_name, u.email AS current_email, u.age AS current_age
+      SELECT
+        r.*,
+        u.full_name AS current_name,
+        u.email AS current_email,
+        u.age AS current_age,
+        u.birthdate AS current_birthdate,
+        u.gender AS current_gender,
+        u.bio AS current_bio,
+        u.profile_photo AS current_profile_photo,
+        u.qualification AS current_qualification,
+        u.years_experience AS current_years_experience,
+        u.specializations AS current_specializations
       FROM profile_change_requests r
       JOIN users u ON u.user_id = r.user_id
       WHERE r.request_id = ? AND r.status = 'pending'
@@ -51,28 +85,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       // Apply changes to users table (only update fields that are non-null in request)
-      $newName = $req['requested_full_name'];
-      $newAge  = $req['requested_age']; // can be null
+      $newName  = $req['requested_full_name'] ?? null;
+      $newAge   = $req['requested_age']; // keep legacy if you still use it
+      $newBday  = $req['requested_birthdate'] ?? null;
+      $newGen   = $req['requested_gender'] ?? null;
+      $newBio   = $req['requested_bio'] ?? null;
+      $newPhoto = $req['requested_profile_photo'] ?? null;
 
-      $stmt = $mysqli->prepare("
-        UPDATE users
-        SET
-          full_name = COALESCE(?, full_name),
-          email     = COALESCE(?, email),
-          age       = ?
-        WHERE user_id = ?
-      ");
+      $newQual  = $req['requested_qualification'] ?? null;
+      $newYears = $req['requested_years_experience']; // may be null
+      $newSpecs = $req['requested_specializations'] ?? null;
 
       // For age: if request has NULL, keep existing by passing existing age
       $ageToSet = ($req['requested_age'] === null) ? $req['current_age'] : (int)$req['requested_age'];
 
+      // Normalize empty strings to NULL (so COALESCE works properly)
+      $newEmail = ($newEmail !== '') ? $newEmail : null;
+      $newName  = ($newName  !== '') ? $newName  : null;
+      $newBday  = ($newBday  !== '') ? $newBday  : null;
+      $newGen   = ($newGen   !== '') ? $newGen   : null;
+      $newBio   = ($newBio   !== '') ? $newBio   : null;
+      $newPhoto = ($newPhoto !== '') ? $newPhoto : null;
+      $newQual  = ($newQual  !== '') ? $newQual  : null;
+
+      // years_experience: keep null if not provided
+      $yearsToSet = ($newYears === null) ? null : (int)$newYears;
+
+      /* ---------------------------
+        Move pending profile photo (if any) -> final profile photo
+        pending: uploads/pending_profiles/xxx.jpg
+        final:   uploads/profile_photos/user_{id}.jpg (or png)
+      ----------------------------*/
+      if ($newPhoto !== null) {
+        // Only allow files from the pending folder
+        $rel = str_replace('\\', '/', $newPhoto);
+        if (strpos($rel, 'uploads/pending_profiles/') !== 0) {
+          throw new Exception("Invalid pending photo path.");
+        }
+
+        $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['jpg','jpeg','png'], true)) {
+          throw new Exception("Invalid photo type (must be JPG/PNG).");
+        }
+        if ($ext === 'jpeg') $ext = 'jpg';
+
+        // Absolute paths
+        $rootAbs = realpath(__DIR__ . '/..'); // liftright/web
+        if (!$rootAbs) throw new Exception("Server path error (root).");
+
+        $srcAbs = $rootAbs . '/' . $rel;
+        if (!is_file($srcAbs)) {
+          throw new Exception("Pending photo file not found.");
+        }
+
+        $finalRelDir = 'uploads/profile_photos';
+        $finalAbsDir = $rootAbs . '/' . $finalRelDir;
+        if (!is_dir($finalAbsDir)) {
+          if (!mkdir($finalAbsDir, 0775, true)) {
+            throw new Exception("Failed to create profile photo directory.");
+          }
+        }
+
+        // Final filename (overwrite-safe per user)
+        $finalRel = $finalRelDir . '/user_' . $target_user_id . '.' . $ext;
+        $dstAbs   = $rootAbs . '/' . $finalRel;
+
+        // Move (rename); fallback to copy/unlink if rename fails (Windows edge cases)
+        $moved = @rename($srcAbs, $dstAbs);
+        if (!$moved) {
+          $moved = (@copy($srcAbs, $dstAbs) && @unlink($srcAbs));
+        }
+        if (!$moved) {
+          throw new Exception("Failed to move profile photo to final folder.");
+        }
+
+        // Set the value that will be written to users.profile_photo
+        $newPhoto = $finalRel;
+      }
+
+      // specializations: keep null if not provided (JSON column can accept null / JSON string)
+      $specsToSet = ($newSpecs === null || $newSpecs === '') ? null : $newSpecs;
+
+      $stmt = $mysqli->prepare("
+        UPDATE users
+        SET
+          full_name        = COALESCE(?, full_name),
+          email            = COALESCE(?, email),
+          age              = ?,
+          birthdate        = COALESCE(?, birthdate),
+          gender           = COALESCE(?, gender),
+          bio              = COALESCE(?, bio),
+          profile_photo    = COALESCE(?, profile_photo),
+          qualification    = COALESCE(?, qualification),
+          years_experience = COALESCE(?, years_experience),
+          specializations  = COALESCE(?, specializations)
+        WHERE user_id = ?
+      ");
+
+      // Types: s s i s s s s s i s i  (11 vars => 11 chars)
       $stmt->bind_param(
-        "ssii",
+        "ssisssssisi",
         $newName,
         $newEmail,
         $ageToSet,
+        $newBday,
+        $newGen,
+        $newBio,
+        $newPhoto,
+        $newQual,
+        $yearsToSet,
+        $specsToSet,
         $target_user_id
       );
+
       $stmt->execute();
       $stmt->close();
 
@@ -126,8 +251,13 @@ $sql = "
   SELECT
     r.request_id, r.user_id,
     r.requested_full_name, r.requested_email, r.requested_age,
+    r.requested_birthdate, r.requested_gender, r.requested_bio, r.requested_profile_photo,
+    r.requested_qualification, r.requested_years_experience, r.requested_specializations,
     r.status, r.created_at, r.reviewed_at, r.reviewed_by, r.admin_notes,
-    u.full_name AS current_name, u.email AS current_email, u.age AS current_age, u.role
+    u.full_name AS current_name, u.email AS current_email, u.age AS current_age,
+    u.birthdate AS current_birthdate, u.gender AS current_gender, u.bio AS current_bio, u.profile_photo AS current_profile_photo,
+    u.qualification AS current_qualification, u.years_experience AS current_years_experience, u.specializations AS current_specializations,
+    u.role
   FROM profile_change_requests r
   JOIN users u ON u.user_id = r.user_id
   WHERE r.status = ?
@@ -226,6 +356,10 @@ require __DIR__ . '/../includes/head.php';
               <tr><td colspan="7" class="text-center py-4 lr-stat-subtext">No requests found.</td></tr>
             <?php else: ?>
               <?php foreach ($rows as $r): ?>
+                <?php
+                  $curPhotoUrl = photo_url($r['current_profile_photo'] ?? null, $BASE_URL);
+                  $reqPhotoUrl = photo_url($r['requested_profile_photo'] ?? null, $BASE_URL);
+                ?>
                 <tr>
                   <td class="fw-semibold">#<?= (int)$r['request_id'] ?></td>
 
@@ -240,7 +374,21 @@ require __DIR__ . '/../includes/head.php';
                     <div class="lr-stat-subtext">
                       Name: <?= h((string)$r['current_name']) ?><br>
                       Email: <?= h((string)$r['current_email']) ?><br>
-                      Age: <?= $r['current_age'] === null ? '—' : (int)$r['current_age'] ?>
+                      Birthdate: <?= h((string)($r['current_birthdate'] ?? '—')) ?><br>
+                      Gender: <?= h((string)($r['current_gender'] ?? '—')) ?><br>
+                      Bio: <?= h((string)($r['current_bio'] ?? '—')) ?><br>
+                      Qualification: <?= h((string)($r['current_qualification'] ?? '—')) ?><br>
+                      Years Exp: <?= $r['current_years_experience'] === null ? '—' : (int)$r['current_years_experience'] ?><br>
+                      Specs: <?= h((string)($r['current_specializations'] ?? '—')) ?><br>
+                      Photo:
+                      <?php if ($curPhotoUrl): ?>
+                        <div class="mt-1">
+                          <img src="<?= h($curPhotoUrl) ?>" alt="Current photo"
+                               style="width:52px;height:52px;object-fit:cover;border-radius:10px;">
+                        </div>
+                      <?php else: ?>
+                        —
+                      <?php endif; ?>
                     </div>
                   </td>
 
@@ -248,7 +396,22 @@ require __DIR__ . '/../includes/head.php';
                     <div class="lr-stat-subtext">
                       Name: <?= h((string)($r['requested_full_name'] ?? '—')) ?><br>
                       Email: <?= h((string)($r['requested_email'] ?? '—')) ?><br>
-                      Age: <?= $r['requested_age'] === null ? '—' : (int)$r['requested_age'] ?>
+                      Birthdate: <?= h((string)($r['requested_birthdate'] ?? '—')) ?><br>
+                      Gender: <?= h((string)($r['requested_gender'] ?? '—')) ?><br>
+                      Bio: <?= h((string)($r['requested_bio'] ?? '—')) ?><br>
+                      Qualification: <?= h((string)($r['requested_qualification'] ?? '—')) ?><br>
+                      Years Exp: <?= $r['requested_years_experience'] === null ? '—' : (int)$r['requested_years_experience'] ?><br>
+                      Specs: <?= h((string)($r['requested_specializations'] ?? '—')) ?><br>
+                      Photo:
+                      <?php if ($reqPhotoUrl): ?>
+                        <div class="mt-1">
+                          <img src="<?= h($reqPhotoUrl) ?>" alt="Requested photo"
+                               style="width:52px;height:52px;object-fit:cover;border-radius:10px;">
+                          <div class="lr-stat-subtext">Uploaded (pending)</div>
+                        </div>
+                      <?php else: ?>
+                        —
+                      <?php endif; ?>
                     </div>
                   </td>
 
@@ -287,3 +450,5 @@ require __DIR__ . '/../includes/head.php';
 </div>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>
+</body>
+</html>

@@ -15,7 +15,9 @@ $pending = get_pending_profile_request($mysqli, $user_id);
 
 // Load user row (fresh from DB; don't rely only on session)
 $stmt = $mysqli->prepare("
-  SELECT user_id, full_name, email, role, age, created_at, last_login
+  SELECT user_id, full_name, email, role,
+         birthdate, gender, bio, profile_photo,
+         created_at, last_login
   FROM users
   WHERE user_id = ?
   LIMIT 1
@@ -136,8 +138,18 @@ require __DIR__ . '/../includes/head.php';
           </div>
           <div class="lr-card-body">
             <div class="d-flex align-items-center gap-3 mb-3">
-              <div class="avatar-circle" style="width:56px;height:56px;font-size:18px;">
-                <?= h(strtoupper(substr((string)$user['full_name'], 0, 1))) ?>
+              <?php
+                $photoSrc = '';
+                if (!empty($user['profile_photo'])) {
+                  $photoSrc = $BASE_URL . '/' . ltrim((string)$user['profile_photo'], '/');
+                }
+              ?>
+              <div class="avatar-circle" style="width:56px;height:56px;font-size:18px;overflow:hidden;">
+                <?php if ($photoSrc): ?>
+                  <img src="<?= h($photoSrc) ?>" style="width:100%;height:100%;object-fit:cover;">
+                <?php else: ?>
+                  <?= h(strtoupper(substr((string)$user['full_name'], 0, 1))) ?>
+                <?php endif; ?>
               </div>
               <div>
                 <div class="fw-semibold fs-5"><?= h((string)$user['full_name']) ?></div>
@@ -151,8 +163,18 @@ require __DIR__ . '/../includes/head.php';
                 <div class="text-capitalize"><?= h((string)$user['role']) ?></div>
               </div>
               <div class="col-6">
-                <div class="lr-stat-label">Age</div>
-                <div><?= $user['age'] === null ? '—' : (int)$user['age'] ?></div>
+                <div class="lr-stat-label">Birthdate</div>
+                <div><?= h((string)($user['birthdate'] ?? '—')) ?></div>
+              </div>
+
+              <div class="col-6">
+                <div class="lr-stat-label">Gender</div>
+                <div><?= h((string)($user['gender'] ?? '—')) ?></div>
+              </div>
+
+              <div class="col-12">
+                <div class="lr-stat-label">Bio</div>
+                <div><?= h((string)($user['bio'] ?? '—')) ?></div>
               </div>
 
               <div class="col-12">

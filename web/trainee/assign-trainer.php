@@ -1,8 +1,10 @@
 <?php
 // liftright/web/trainee/assign-trainer.php
+
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../includes/profile_change_helpers.php';
 
 require_role(['user']);
 $page_title = "Assign Trainer";
@@ -11,196 +13,203 @@ $trainee_id = (int)$_SESSION['user_id'];
 $err = '';
 $msg = '';
 
-// --- AJAX: trainer search (max 5 initial, else search query) ---
-if (isset($_GET['ajax']) && $_GET['ajax'] === 'trainer_search') {
-  header('Content-Type: application/json');
+/* =========================================================
+   DETECT CURRENT STATE
+========================================================= */
 
-  $q = trim((string)($_GET['q'] ?? ''));
-
-  if ($q !== '') {
-    $stmt = $mysqli->prepare("
-      SELECT user_id, full_name, email
-      FROM users
-      WHERE role='trainer'
-        AND (account_status IS NULL OR account_status='approved')  -- safe if column exists
-        AND (full_name LIKE CONCAT('%', ?, '%') OR email LIKE CONCAT('%', ?, '%'))
-      ORDER BY full_name
-      LIMIT 10
-    ");
-    $stmt->bind_param("ss", $q, $q);
-  } else {
-    $stmt = $mysqli->prepare("
-      SELECT user_id, full_name, email
-      FROM users
-      WHERE role='trainer'
-        AND (account_status IS NULL OR account_status='approved')
-      ORDER BY created_at DESC
-      LIMIT 5
-    ");
-  }
-
-  $stmt->execute();
-  $res = $stmt->get_result();
-
-  $out = [];
-  while ($row = $res->fetch_assoc()) {
-    $out[] = [
-      'user_id' => (int)$row['user_id'],
-      'full_name' => (string)$row['full_name'],
-      'email' => (string)$row['email'],
-    ];
-  }
-  $stmt->close();
-
-  echo json_encode(['success' => true, 'items' => $out]);
-  exit;
-}
-
-function rand_token(int $bytes = 32): string {
-  return bin2hex(random_bytes($bytes)); // 64 hex chars when $bytes=32
-}
-
-// Load trainee + assigned trainer (if any)
 $stmt = $mysqli->prepare("
-  SELECT u.user_id, u.full_name, u.trainer_id,
-         t.full_name AS trainer_name, t.email AS trainer_email
-  FROM users u
-  LEFT JOIN users t ON t.user_id = u.trainer_id
-  WHERE u.user_id = ?
-  LIMIT 1
-");
-$stmt->bind_param("i", $trainee_id);
-$stmt->execute();
-$me = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-
-if (!$me) {
-  header("Location: {$BASE_URL}/trainee/dashboard.php");
-  exit;
-}
-
-$assigned_trainer_id = (int)($me['trainer_id'] ?? 0);
-
-// Load latest invite (for display)
-$latest_invite = null;
-$stmt = $mysqli->prepare("
-  SELECT invite_id, trainee_id, trainer_id, status, expires_at, created_at, responded_at
+  SELECT *
   FROM trainer_invites
   WHERE trainee_id = ?
+    AND status IN ('pending','accepted','unlink_requested')
   ORDER BY created_at DESC
   LIMIT 1
 ");
 $stmt->bind_param("i", $trainee_id);
 $stmt->execute();
-$latest_invite = $stmt->get_result()->fetch_assoc();
+$current = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Handle cancel pending invite
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_invite'])) {
-  $invite_id = (int)($_POST['invite_id'] ?? 0);
+$current_status = $current['status'] ?? null;
+$current_trainer_id = (int)($current['trainer_id'] ?? 0);
 
-  if ($invite_id <= 0) {
-    $err = "Invalid invite.";
-  } else {
-    $stmt = $mysqli->prepare("
-      UPDATE trainer_invites
-      SET status = 'cancelled', responded_at = NOW()
-      WHERE invite_id = ? AND trainee_id = ? AND status = 'pending'
-    ");
-    $stmt->bind_param("ii", $invite_id, $trainee_id);
-    $stmt->execute();
-    $affected = $stmt->affected_rows;
-    $stmt->close();
+$assigned_trainer = null;
 
-    if ($affected > 0) {
-      $msg = "Invite cancelled.";
-    } else {
-      $err = "Unable to cancel invite (maybe already processed).";
-    }
-  }
+if ($current_status === 'accepted' && $current_trainer_id > 0) {
+
+  $stmt = $mysqli->prepare("
+    SELECT u.user_id, u.full_name, u.profile_photo,
+           u.qualification, u.years_experience,
+           u.bio,
+           COALESCE(r.avg_rating,0) AS avg_rating,
+           COALESCE(r.review_count,0) AS review_count
+    FROM users u
+    LEFT JOIN trainer_rating_summary r ON r.trainer_id = u.user_id
+    WHERE u.user_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("i", $current_trainer_id);
+  $stmt->execute();
+  $assigned_trainer = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
 }
 
-// Handle send invite
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_invite'])) {
-  if ($assigned_trainer_id > 0) {
-    $err = "You already have an assigned trainer.";
-  } else {
-    $trainer_id_in = (int)($_POST['trainer_id'] ?? 0);
+/* =========================================================
+   HANDLE ACTIONS
+========================================================= */
 
-    // find trainer by selected ID only
-    $trainer = null;
-    if ($trainer_id_in > 0) {
-      $stmt = $mysqli->prepare("
-        SELECT user_id, full_name
-        FROM users
-        WHERE user_id = ? AND role='trainer'
-        LIMIT 1
-      ");
-      $stmt->bind_param("i", $trainer_id_in);
-      $stmt->execute();
-      $trainer = $stmt->get_result()->fetch_assoc();
-      $stmt->close();
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    if (!$trainer) {
-      $err = "Trainer not found. Check the email or ID.";
+  // Cancel pending
+  if (isset($_POST['cancel_invite']) && $current_status === 'pending') {
+
+    $stmt = $mysqli->prepare("
+      UPDATE trainer_invites
+      SET status='cancelled', responded_at=NOW()
+      WHERE invite_id=? AND trainee_id=?
+    ");
+    $stmt->bind_param("ii", $current['invite_id'], $trainee_id);
+    $stmt->execute();
+    $stmt->close();
+
+    header("Location: assign-trainer.php");
+    exit;
+  }
+
+  // Request unlink
+  if (isset($_POST['request_unlink']) && $current_status === 'accepted') {
+
+    $stmt = $mysqli->prepare("
+      UPDATE trainer_invites
+      SET status='unlink_requested'
+      WHERE invite_id=? AND trainee_id=?
+    ");
+    $stmt->bind_param("ii", $current['invite_id'], $trainee_id);
+    $stmt->execute();
+    $stmt->close();
+
+    $traineeName = (string)($_SESSION['full_name'] ?? ("Trainee #{$trainee_id}"));
+    $trainerName = $assigned_trainer ? (string)$assigned_trainer['full_name'] : ("Trainer #{$current_trainer_id}");
+
+    notify_all_admins(
+      $mysqli,
+      "Unlink requested: {$traineeName} (#{$trainee_id}) from {$trainerName} (#{$current_trainer_id}).",
+      null,
+      $trainee_id
+    );
+
+    header("Location: assign-trainer.php");
+    exit;
+  }
+
+  // Send invite
+  if (isset($_POST['send_invite'])) {
+
+    if ($current_status) {
+      $err = "You already have an active or pending trainer.";
     } else {
-      $trainer_id = (int)$trainer['user_id'];
 
-      // prevent duplicate pending invite to same trainer
-      $stmt = $mysqli->prepare("
-        SELECT invite_id
-        FROM trainer_invites
-        WHERE trainee_id = ? AND trainer_id = ? AND status = 'pending'
-        LIMIT 1
-      ");
-      $stmt->bind_param("ii", $trainee_id, $trainer_id);
-      $stmt->execute();
-      $dup = $stmt->get_result()->fetch_assoc();
-      $stmt->close();
+      $trainer_id = (int)($_POST['trainer_id'] ?? 0);
 
-      if ($dup) {
-        $err = "You already have a pending invite for this trainer.";
-      } else {
-        $token = rand_token(32);
+      if ($trainer_id > 0) {
+
+        $token = bin2hex(random_bytes(32));
 
         $stmt = $mysqli->prepare("
-          INSERT INTO trainer_invites (trainee_id, trainer_id, status, token, expires_at)
+          INSERT INTO trainer_invites
+          (trainee_id, trainer_id, status, token, expires_at)
           VALUES (?, ?, 'pending', ?, DATE_ADD(NOW(), INTERVAL 7 DAY))
         ");
         $stmt->bind_param("iis", $trainee_id, $trainer_id, $token);
         $stmt->execute();
         $stmt->close();
 
-        // notify trainer
-        $notif_msg = "New trainer request from: " . (string)$me['full_name'] . " (Trainee ID: {$trainee_id})";
-        $stmt = $mysqli->prepare("
-          INSERT INTO notifications (user_id, notif_type, message, from_user_id)
-          VALUES (?, 'assignment', ?, ?)
-        ");
-        $stmt->bind_param("isi", $trainer_id, $notif_msg, $trainee_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $msg = "Invite sent. Waiting for trainer approval.";
+        // PRG pattern: redirect so the top "current state" query runs fresh
+        header("Location: assign-trainer.php?sent=1");
+        exit;
       }
     }
   }
 }
 
-// Reload latest invite after actions
-$stmt = $mysqli->prepare("
-  SELECT i.invite_id, i.trainee_id, i.trainer_id, i.status, i.expires_at, i.created_at, i.responded_at,
-         u.full_name AS trainer_name, u.email AS trainer_email
-  FROM trainer_invites i
-  JOIN users u ON u.user_id = i.trainer_id
-  WHERE i.trainee_id = ?
-  ORDER BY i.created_at DESC
-  LIMIT 1
-");
-$stmt->bind_param("i", $trainee_id);
+/* =========================================================
+   FILTERS
+========================================================= */
+
+$q = trim($_GET['q'] ?? '');
+$gender = trim($_GET['gender'] ?? '');
+$exp = trim($_GET['exp'] ?? '');
+$rating = trim($_GET['rating'] ?? '');
+$page = max(1, (int)($_GET['page'] ?? 1));
+$limit = 5;
+$offset = ($page - 1) * $limit;
+
+$where = "u.role='trainer'
+          AND u.account_status='approved'
+          AND u.accepting_trainees = 1";
+$params = [];
+$types = "";
+
+if ($q !== '') {
+  $where .= " AND (u.full_name LIKE CONCAT('%', ?, '%')
+                OR u.qualification LIKE CONCAT('%', ?, '%')
+                OR u.specializations LIKE CONCAT('%', ?, '%'))";
+  $types .= "sss";
+  $params[] = $q; $params[] = $q; $params[] = $q;
+}
+
+if ($gender !== '') {
+  $where .= " AND u.gender=?";
+  $types .= "s";
+  $params[] = $gender;
+}
+
+if ($rating !== '') {
+  $where .= " AND COALESCE(r.avg_rating,0) >= ?";
+  $types .= "d";
+  $params[] = (float)$rating;
+}
+
+/* =========================================================
+   COUNT TOTAL (for pagination)
+========================================================= */
+
+$count_sql = "
+  SELECT COUNT(*)
+  FROM users u
+  LEFT JOIN trainer_rating_summary r ON r.trainer_id=u.user_id
+  WHERE $where
+";
+$stmt = $mysqli->prepare($count_sql);
+if ($types !== "") $stmt->bind_param($types, ...$params);
 $stmt->execute();
-$latest_invite = $stmt->get_result()->fetch_assoc();
+$stmt->bind_result($total_rows);
+$stmt->fetch();
+$stmt->close();
+
+$total_pages = max(1, ceil($total_rows / $limit));
+
+/* =========================================================
+   LOAD TRAINERS
+========================================================= */
+
+$sql = "
+  SELECT u.user_id, u.full_name, u.profile_photo,
+         u.qualification, u.years_experience,
+         u.specializations, u.bio,
+         COALESCE(r.avg_rating,0) AS avg_rating,
+         COALESCE(r.review_count,0) AS review_count
+  FROM users u
+  LEFT JOIN trainer_rating_summary r ON r.trainer_id=u.user_id
+  WHERE $where
+  ORDER BY avg_rating DESC, review_count DESC, u.years_experience DESC
+  LIMIT $limit OFFSET $offset
+";
+
+$stmt = $mysqli->prepare($sql);
+if ($types !== "") $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$trainers = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
 require __DIR__ . '/../includes/head.php';
@@ -209,187 +218,198 @@ require __DIR__ . '/../includes/head.php';
 <?php require __DIR__ . '/../includes/navbar.php'; ?>
 
 <div class="lr-page-wrapper">
-  <div class="container lr-main-container py-4">
+<div class="container lr-main-container py-4">
 
-    <div class="row mb-4 align-items-center">
-      <div class="col-md-8">
-        <div class="lr-section-title mb-1">Coach Link</div>
-        <h1 class="lr-section-heading mb-1">Assign Trainer</h1>
-        <p class="lr-stat-subtext mb-0">Invite a trainer to review your sessions and provide written feedback.</p>
-      </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/trainee/dashboard.php">← Back</a>
-      </div>
+<div class="row mb-4 align-items-center">
+  <div class="col-md-8">
+    <div class="lr-section-title mb-1">Coach Link</div>
+    <h1 class="lr-section-heading mb-1">Trainer Directory</h1>
+    <p class="lr-stat-subtext mb-0">
+      Discover trainers by experience, specialization, and rating.
+    </p>
+  </div>
+</div>
+
+<?php if (isset($_GET['sent'])): ?>
+  <div class="alert alert-success">
+    Trainer request sent. Awaiting approval.
+  </div>
+<?php endif; ?>
+
+<?php if (!empty($err)): ?>
+  <div class="alert alert-danger">
+    <?= h($err) ?>
+  </div>
+<?php endif; ?>
+
+<?php if ($current_status === 'accepted' && $assigned_trainer): ?>
+
+<div class="lr-card mb-4">
+  <div class="lr-card-header d-flex justify-content-between align-items-center">
+    <div>
+      <div class="lr-section-title mb-1">Trainer Link</div>
+      <div class="lr-section-heading mb-0">Currently Assigned</div>
     </div>
+    <span class="lr-badge lr-badge-good">Active</span>
+  </div>
 
-    <?php if ($err !== ''): ?>
-      <div class="alert alert-danger"><?= h($err) ?></div>
-    <?php elseif ($msg !== ''): ?>
-      <div class="alert alert-success"><?= h($msg) ?></div>
-    <?php endif; ?>
+  <div class="lr-card-body">
 
-    <div class="row g-4">
-      <div class="col-lg-5">
-        <div class="lr-card">
-          <div class="lr-card-header">
-            <div class="lr-section-title mb-1">Status</div>
-            <div class="lr-section-heading mb-0">Current trainer</div>
-          </div>
-          <div class="lr-card-body">
-            <?php if ($assigned_trainer_id > 0): ?>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <div>
-                  <div class="fw-semibold"><?= h((string)$me['trainer_name']) ?></div>
-                  <div class="lr-stat-subtext mb-0"><?= h((string)$me['trainer_email']) ?></div>
-                </div>
-                <span class="lr-badge lr-badge-good">Assigned</span>
-              </div>
-              <div class="lr-stat-subtext">You can now receive trainer reviews on your sessions.</div>
-            <?php else: ?>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="fw-semibold">No trainer assigned</div>
-                <span class="lr-badge lr-badge-warning">Unassigned</span>
-              </div>
-              <div class="lr-stat-subtext">Send an invite to link to a trainer.</div>
-            <?php endif; ?>
+    <div class="d-flex gap-3 align-items-center mb-3">
 
-            <?php if ($latest_invite): ?>
-              <hr style="border-color: rgba(148,163,184,0.14);">
-              <div class="lr-section-title mb-2">Latest invite</div>
-              <div class="d-flex justify-content-between align-items-center">
-                <div class="text-capitalize fw-semibold"><?= h((string)$latest_invite['status']) ?></div>
-                <div class="lr-stat-subtext mb-0"><?= h(date("M d, Y", strtotime((string)$latest_invite['created_at']))) ?></div>
-              </div>
-              <div class="lr-stat-subtext mt-1">
-                Trainer: <?= h((string)$latest_invite['trainer_name']) ?>
-                <span class="text-secondary" style="opacity:.85;">(<?= h((string)$latest_invite['trainer_email']) ?>)</span>
-              </div>
-              <?php if (!empty($latest_invite['expires_at'])): ?>
-                <div class="lr-stat-subtext mb-0">Expires: <?= h(date("M d, Y • g:i A", strtotime((string)$latest_invite['expires_at']))) ?></div>
-              <?php endif; ?>
-
-              <?php if ((string)$latest_invite['status'] === 'pending' && $assigned_trainer_id === 0): ?>
-                <form method="post" class="mt-3">
-                  <input type="hidden" name="cancel_invite" value="1">
-                  <input type="hidden" name="invite_id" value="<?= (int)$latest_invite['invite_id'] ?>">
-                  <button class="btn btn-sm btn-outline-light">
-                    <i class="fa-solid fa-ban me-2"></i>Cancel invite
-                  </button>
-                </form>
-              <?php endif; ?>
-            <?php endif; ?>
-          </div>
-        </div>
+      <div class="avatar-circle" style="width:80px;height:80px;">
+        <?php if ($assigned_trainer['profile_photo']): ?>
+          <img src="<?= $BASE_URL.'/'.ltrim($assigned_trainer['profile_photo'],'/') ?>"
+               style="width:100%;height:100%;object-fit:cover;">
+        <?php else: ?>
+          <?= strtoupper(substr($assigned_trainer['full_name'],0,1)) ?>
+        <?php endif; ?>
       </div>
 
-      <div class="col-lg-7">
-        <div class="lr-card">
-          <div class="lr-card-header">
-            <div class="lr-section-title mb-1">Invite</div>
-            <div class="lr-section-heading mb-0">Request trainer approval</div>
-          </div>
-          <div class="lr-card-body">
-            <?php if ($assigned_trainer_id > 0): ?>
-              <div class="lr-stat-subtext">Already assigned.</div>
-            <?php else: ?>
-              <form method="post" class="row g-3">
-                <input type="hidden" name="send_invite" value="1">
-
-                <div class="col-12">
-                  <label class="form-label lr-stat-label">Search trainer</label>
-
-                  <input class="form-control" id="trainerSearch" type="text"
-                        placeholder="Type name or email… (shows 5 by default)">
-                  <input type="hidden" name="trainer_id" id="trainer_id" value="">
-
-                  <div id="trainerDropdown"
-                      class="list-group mt-2"
-                      style="display:none; max-height: 240px; overflow:auto;"></div>
-
-                  <div class="lr-stat-subtext mt-2" id="trainerPicked" style="display:none;"></div>
-                </div>
-
-                <div class="col-12 d-grid d-md-flex justify-content-md-end">
-                  <button class="btn btn-primary px-4">
-                    <i class="fa-regular fa-paper-plane me-2"></i>Send Invite
-                  </button>
-                </div>
-
-                <div class="col-12">
-                  <div class="lr-stat-subtext">
-                    Invite expires after 7 days. Trainer must accept to link accounts.
-                  </div>
-                </div>
-              </form>
-            <?php endif; ?>
-          </div>
+      <div>
+        <div class="fw-semibold fs-5"><?= h($assigned_trainer['full_name']) ?></div>
+        <div class="lr-stat-subtext">
+          <?= h($assigned_trainer['qualification'] ?? 'Trainer') ?>
+        </div>
+        <div class="small">
+          <?= (int)$assigned_trainer['years_experience'] ?> yrs experience
+        </div>
+        <div class="small">
+          ⭐ <?= number_format($assigned_trainer['avg_rating'],1) ?>
+          (<?= (int)$assigned_trainer['review_count'] ?> reviews)
         </div>
       </div>
 
     </div>
+
+    <div class="lr-stat-subtext mb-3">
+      <?= h(substr($assigned_trainer['bio'] ?? '',0,200)) ?>
+    </div>
+
+    <form method="post">
+      <button class="btn btn-outline-light btn-sm" name="request_unlink">
+        Request Unlink
+      </button>
+    </form>
 
   </div>
 </div>
 
-<script>
-(function(){
-  const input = document.getElementById('trainerSearch');
-  const dd = document.getElementById('trainerDropdown');
-  const hid = document.getElementById('trainer_id');
-  const picked = document.getElementById('trainerPicked');
+<?php elseif ($current_status === 'pending'): ?>
+<div class="alert alert-warning">
+  <strong>Pending Trainer Approval.</strong>
+  <form method="post" class="mt-2">
+    <button class="btn btn-sm btn-outline-light" name="cancel_invite">
+      Cancel Request
+    </button>
+  </form>
+</div>
+<?php elseif ($current_status === 'unlink_requested'): ?>
+<div class="alert alert-warning">
+  <strong>Unlink Request Submitted.</strong> Awaiting admin decision.
+</div>
+<?php endif; ?>
 
-  let t = null;
+<div class="lr-card mb-4">
+  <div class="lr-card-body">
+    <form class="row g-3">
 
-  function show(items){
-    dd.innerHTML = '';
-    if (!items.length) { dd.style.display='none'; return; }
-    items.forEach(it => {
-      const a = document.createElement('button');
-      a.type = 'button';
-      a.className = 'list-group-item list-group-item-action';
-      a.innerHTML = `<div class="fw-semibold">${escapeHtml(it.full_name)}</div>
-                     <div class="small text-secondary" style="opacity:.9;">${escapeHtml(it.email)} • ID: ${it.user_id}</div>`;
-      a.addEventListener('click', () => {
-        hid.value = it.user_id;
-        input.value = it.full_name + ' — ' + it.email;
-        dd.style.display='none';
-        picked.style.display='block';
-        picked.textContent = 'Selected: ' + it.full_name + ' (' + it.email + ')';
-      });
-      dd.appendChild(a);
-    });
-    dd.style.display='block';
-  }
+      <div class="col-md-4">
+        <input class="form-control" name="q"
+               placeholder="Search name, qualification, specialization"
+               value="<?= h($q) ?>">
+      </div>
 
-  function fetchItems(q){
-    fetch('assign-trainer.php?ajax=trainer_search&q=' + encodeURIComponent(q || ''))
-      .then(r => r.json())
-      .then(j => show((j && j.items) ? j.items : []))
-      .catch(()=> dd.style.display='none');
-  }
+      <div class="col-md-2">
+        <select class="form-select" name="gender">
+          <option value="">Gender</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
 
-  // initial load: show 5 on focus
-  input.addEventListener('focus', () => fetchItems(''));
+      <div class="col-md-2">
+        <select class="form-select" name="rating">
+          <option value="">Min Rating</option>
+          <option value="3">3+</option>
+          <option value="4">4+</option>
+          <option value="4.5">4.5+</option>
+        </select>
+      </div>
 
-  // type-to-search
-  input.addEventListener('input', () => {
-    hid.value = '';
-    picked.style.display='none';
-    clearTimeout(t);
-    t = setTimeout(() => fetchItems(input.value.trim()), 150);
-  });
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100">Apply</button>
+      </div>
 
-  // click outside closes
-  document.addEventListener('click', (e) => {
-    if (!dd.contains(e.target) && e.target !== input) dd.style.display='none';
-  });
+    </form>
+  </div>
+</div>
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, m => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-    }[m]));
-  }
-})();
-</script>
+<div class="row g-4">
+
+<?php foreach ($trainers as $t): ?>
+<div class="col-md-6">
+
+<div class="lr-card h-100">
+<div class="lr-card-body">
+
+<div class="d-flex gap-3 align-items-center mb-3">
+
+<div class="avatar-circle" style="width:72px;height:72px;">
+<?php if ($t['profile_photo']): ?>
+<img src="<?= $BASE_URL.'/'.ltrim($t['profile_photo'],'/') ?>"
+     style="width:100%;height:100%;object-fit:cover;">
+<?php else: ?>
+<?= strtoupper(substr($t['full_name'],0,1)) ?>
+<?php endif; ?>
+</div>
+
+<div>
+<div class="fw-semibold"><?= h($t['full_name']) ?></div>
+<div class="lr-stat-subtext"><?= h($t['qualification']) ?></div>
+<div class="small"><?= (int)$t['years_experience'] ?> yrs exp</div>
+<div class="small">⭐ <?= number_format($t['avg_rating'],1) ?>
+ (<?= (int)$t['review_count'] ?> reviews)</div>
+</div>
+
+</div>
+
+<div class="lr-stat-subtext mb-3">
+<?= h(substr($t['bio'] ?? '',0,140)) ?>
+</div>
+
+<?php if (!$current_status): ?>
+<form method="post">
+<input type="hidden" name="send_invite" value="1">
+<input type="hidden" name="trainer_id" value="<?= $t['user_id'] ?>">
+<button class="btn btn-primary btn-sm">Request Trainer</button>
+</form>
+<?php else: ?>
+<button class="btn btn-outline-light btn-sm" disabled>Unavailable</button>
+<?php endif; ?>
+
+</div>
+</div>
+
+</div>
+<?php endforeach; ?>
+
+</div>
+
+<!-- Pagination -->
+<?php if ($total_pages > 1): ?>
+<div class="mt-4 text-center">
+<?php for ($i=1;$i<=$total_pages;$i++): ?>
+<a class="btn btn-sm <?= $i==$page?'btn-primary':'btn-outline-light' ?>"
+   href="?<?= http_build_query(array_merge($_GET,['page'=>$i])) ?>">
+  <?= $i ?>
+</a>
+<?php endfor; ?>
+</div>
+<?php endif; ?>
+
+</div>
+</div>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

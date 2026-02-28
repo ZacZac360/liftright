@@ -4,52 +4,96 @@
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../includes/profile_change_helpers.php';
 
 require_role(['trainer']);
 
-require_once __DIR__ . '/../includes/profile_change_helpers.php';
-$pending = get_pending_profile_request($mysqli, $user_id);require_once __DIR__ . '/../includes/profile_change_helpers.php';
-
-
 $page_title = "Coach Profile";
 
-$trainer_id = (int)($_SESSION['user_id'] ?? 0);
-$full_name  = (string)($_SESSION['full_name'] ?? 'Coach');
-$email      = (string)($_SESSION['email'] ?? '');
+$user_id    = (int)($_SESSION['user_id'] ?? 0);
+$role       = (string)($_SESSION['role'] ?? 'trainer');
 
-$total_reviews = 0;
-$avg_rating = 0;
-$latest_review = null;
+if (!function_exists('h')) {
+  function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+}
 
+function calc_age(?string $birthdate): string {
+  if (!$birthdate) return '—';
+  $ts = strtotime($birthdate);
+  if (!$ts) return '—';
+  $dob = new DateTime(date('Y-m-d', $ts));
+  $now = new DateTime('today');
+  return (string)$dob->diff($now)->y;
+}
+
+/* ----- Fetch current approved profile from users ----- */
 $stmt = $mysqli->prepare("
-  SELECT
-    COUNT(*) AS c,
-    AVG(rating) AS avg_rating,
-    MAX(created_at) AS latest
-  FROM expert_reviews
-  WHERE trainer_id = ?
+SELECT user_id, full_name, email,
+       birthdate, gender, bio, profile_photo,
+       qualification, years_experience, specializations,
+       accepting_trainees
+  FROM users
+  WHERE user_id = ?
+  LIMIT 1
 ");
-$stmt->bind_param("i", $trainer_id);
+$stmt->bind_param("i", $user_id);
 $stmt->execute();
-$row = $stmt->get_result()->fetch_assoc();
+$u = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-if ($row) {
-  $total_reviews = (int)($row['c'] ?? 0);
-  $avg_rating = isset($row['avg_rating']) ? (float)$row['avg_rating'] : 0;
-  $latest_review = $row['latest'] ?? null;
+if (!$u) {
+  header("Location: {$BASE_URL}/logout.php");
+  exit;
 }
 
-function fmtDT(?string $dt): string {
-  if (!$dt) return "—";
-  $ts = strtotime($dt);
-  return $ts ? date("M d, Y • g:i A", $ts) : $dt;
+/* ----- Pending profile request (admin approval) ----- */
+$pending = get_pending_profile_request($mysqli, $user_id);
+
+/* ----- Rating summary (new system) ----- */
+$total_reviews = 0;
+$avg_rating    = 0.0;
+
+$stmt = $mysqli->prepare("
+  SELECT avg_rating, review_count
+  FROM trainer_rating_summary
+  WHERE trainer_id = ?
+  LIMIT 1
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$rs = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if ($rs) {
+  $avg_rating    = (float)($rs['avg_rating'] ?? 0);
+  $total_reviews = (int)($rs['review_count'] ?? 0);
 }
 
+/* ----- Toggle accepting trainees ----- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_accepting'])) {
+
+  $new_value = (int)($_POST['accepting'] ?? 0);
+  $new_value = $new_value ? 1 : 0;
+
+  $stmt = $mysqli->prepare("
+    UPDATE users
+    SET accepting_trainees = ?
+    WHERE user_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("ii", $new_value, $user_id);
+  $stmt->execute();
+  $stmt->close();
+
+  header("Location: {$BASE_URL}/coach/profile.php");
+  exit;
+}
+
+/* ----- Cancel pending request (POST) ----- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_request_id'])) {
   $rid = (int)$_POST['cancel_request_id'];
   if (cancel_profile_request($mysqli, $rid, $user_id)) {
-    header("Location: {$BASE_URL}/" . ($_SESSION['role']==='trainer'?'coach':'trainee') . "/profile.php?cancelled=1");
+    header("Location: {$BASE_URL}/coach/profile.php?cancelled=1");
     exit;
   }
 }
@@ -66,23 +110,59 @@ require __DIR__ . '/../includes/head.php';
       <div class="col-md-8">
         <div class="lr-section-title mb-1">Account</div>
         <h1 class="lr-section-heading mb-1">Coach Profile</h1>
-        <p class="lr-stat-subtext mb-0">Basic account details + your evaluation activity.</p>
+        <p class="lr-stat-subtext mb-0">Your approved profile + pending updates (admin approval required).</p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">
         <a class="btn btn-outline-light btn-sm" href="<?= $BASE_URL ?>/coach/dashboard.php">Back to Dashboard</a>
       </div>
     </div>
 
-    <div class="row g-4">
+    <?php if (isset($_GET['updated'])): ?>
+      <div class="alert alert-success">Profile update request submitted. Waiting for admin approval.</div>
+    <?php endif; ?>
+    <?php if (isset($_GET['cancelled'])): ?>
+      <div class="alert alert-info">Pending request cancelled.</div>
+    <?php endif; ?>
 
     <?php if ($pending): ?>
       <div class="alert alert-warning">
         <div class="fw-semibold">Awaiting admin approval</div>
-        <div class="lr-stat-subtext mb-2">
+        <div class="small" style="opacity:.9;">
           Submitted: <?= h(date("M d, Y • g:i A", strtotime((string)$pending['created_at']))) ?>
         </div>
 
-        <form method="post" action="<?= $BASE_URL ?>/<?= ($_SESSION['role']==='trainer'?'coach':'trainee') ?>/profile.php" class="m-0">
+        <div class="mt-2 small" style="opacity:.95;">
+          <div><b>Requested changes:</b></div>
+          <?php if (!empty($pending['requested_full_name'])): ?>
+            <div>• Name: <?= h((string)$pending['requested_full_name']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_email'])): ?>
+            <div>• Email: <?= h((string)$pending['requested_email']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_birthdate'])): ?>
+            <div>• Birthdate: <?= h((string)$pending['requested_birthdate']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_gender'])): ?>
+            <div>• Gender: <?= h((string)$pending['requested_gender']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_bio'])): ?>
+            <div>• Bio: <?= h((string)$pending['requested_bio']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_qualification'])): ?>
+            <div>• Qualification: <?= h((string)$pending['requested_qualification']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_years_experience'])): ?>
+            <div>• Years experience: <?= (int)$pending['requested_years_experience'] ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_specializations'])): ?>
+            <div>• Specializations: <?= h(json_encode($pending['requested_specializations'])) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pending['requested_profile_photo'])): ?>
+            <div>• New profile photo uploaded (pending)</div>
+          <?php endif; ?>
+        </div>
+
+        <form method="post" class="mt-3 mb-0">
           <input type="hidden" name="cancel_request_id" value="<?= (int)$pending['request_id'] ?>">
           <button class="btn btn-sm btn-outline-light" type="submit"
                   onclick="return confirm('Cancel this pending request?');">
@@ -92,54 +172,94 @@ require __DIR__ . '/../includes/head.php';
       </div>
     <?php endif; ?>
 
+    <div class="row g-4">
+
       <div class="col-lg-5">
         <div class="lr-card">
           <div class="lr-card-header">
             <div class="lr-section-title mb-1">Profile</div>
-            <div class="lr-section-heading mb-0">Your details</div>
+            <div class="lr-section-heading mb-0">Approved details</div>
           </div>
           <div class="lr-card-body">
-            <div class="lr-stat-label">Name</div>
-            <div class="fw-semibold fs-5"><?= h($full_name) ?></div>
 
-            <div class="lr-stat-label mt-3">Email</div>
-            <div class="lr-stat-subtext"><?= h($email ?: '—') ?></div>
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <?php
+                $photo = (string)($u['profile_photo'] ?? '');
+                $src = $photo ? ($BASE_URL . '/' . ltrim($photo, '/')) : '';
+              ?>
+              <div style="width:72px;height:72px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;">
+                <?php if ($src): ?>
+                  <img src="<?= h($src) ?>" alt="Profile photo" style="width:100%;height:100%;object-fit:cover;">
+                <?php else: ?>
+                  <span style="opacity:.8;">No photo</span>
+                <?php endif; ?>
+              </div>
 
-            <div class="lr-stat-label mt-3">Role</div>
-            <span class="lr-badge lr-badge-good">trainer</span>
+              <div>
+                <div class="fw-semibold fs-5"><?= h((string)$u['full_name']) ?></div>
+                <div class="lr-stat-subtext"><?= h((string)$u['email']) ?></div>
+              </div>
+            </div>
+
+            <div class="lr-stat-label">Age</div>
+            <div class="lr-stat-subtext"><?= h(calc_age($u['birthdate'] ?? null)) ?></div>
+
+            <div class="lr-stat-label mt-3">Gender</div>
+            <div class="lr-stat-subtext"><?= h((string)($u['gender'] ?? '—')) ?></div>
+
+            <div class="lr-stat-label mt-3">Bio</div>
+            <div class="lr-stat-subtext"><?= h((string)($u['bio'] ?? '—')) ?></div>
 
             <hr class="border-secondary my-4">
 
-            <div class="lr-stat-subtext mb-0">
-              <?php
-                require_once __DIR__ . '/../includes/profile_change_helpers.php';
-                $pending = get_pending_profile_request($mysqli, (int)$user_id);
-                ?>
+            <div class="lr-stat-label">Qualification</div>
+            <div class="lr-stat-subtext"><?= h((string)($u['qualification'] ?? '—')) ?></div>
 
-                <?php if ($pending): ?>
-                  <div class="alert alert-warning mt-3">
-                    <div class="fw-semibold">Awaiting Admin Approval</div>
-                    <div class="small" style="opacity:.9;">
-                      Requested: 
-                      <?= h((string)$pending['requested_full_name']) ?> •
-                      <?= h((string)$pending['requested_email']) ?> •
-                      Age: <?= $pending['requested_age'] === null ? '—' : (int)$pending['requested_age'] ?>
-                    </div>
+            <div class="lr-stat-label mt-3">Years of experience</div>
+            <div class="lr-stat-subtext"><?= $u['years_experience'] === null ? '—' : (int)$u['years_experience'] ?></div>
 
-                    <form method="post" action="<?= $BASE_URL ?>/cancel-profile-request.php" class="mt-2">
-                      <button class="btn btn-sm btn-outline-light" name="cancel_id"
-                              value="<?= (int)$pending['request_id'] ?>" type="submit">
-                        Cancel Request
-                      </button>
-                    </form>
-                  </div>
-                <?php else: ?>
-                  <a class="btn btn-outline-light mt-2"
-                    href="<?= $BASE_URL ?>/<?= ($role === 'trainer') ? 'coach' : 'trainee' ?>/edit-profile.php">
-                    Edit Profile
-                  </a>
-                <?php endif; ?>
+            <div class="lr-stat-label mt-3">Specializations</div>
+
+            <hr class="border-secondary my-4">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+              <div>
+                <div class="lr-stat-label">Accepting New Trainees</div>
+                <div class="lr-stat-subtext">
+                  <?= $u['accepting_trainees'] ? 'Currently accepting requests.' : 'Not accepting new trainees.' ?>
+                </div>
+              </div>
+
+              <form method="post" class="m-0">
+                <input type="hidden" name="toggle_accepting" value="1">
+                <input type="hidden" name="accepting" value="<?= $u['accepting_trainees'] ? 0 : 1 ?>">
+                <button class="btn <?= $u['accepting_trainees'] ? 'btn-outline-light' : 'btn-primary' ?> btn-sm">
+                  <?= $u['accepting_trainees'] ? 'Disable' : 'Enable' ?>
+                </button>
+              </form>
+
             </div>
+
+            <div class="lr-stat-subtext">
+              <?php
+                $spec = $u['specializations'];
+                if (!$spec) echo '—';
+                else echo h(is_string($spec) ? $spec : json_encode($spec));
+              ?>
+            </div>
+
+            <?php if (!$pending): ?>
+              <a class="btn btn-outline-light mt-3"
+                 href="<?= $BASE_URL ?>/coach/edit-profile.php">
+                Edit Profile
+              </a>
+            <?php else: ?>
+              <div class="lr-stat-subtext mt-3 mb-0">
+                Editing is disabled while a request is pending.
+              </div>
+            <?php endif; ?>
+
           </div>
         </div>
       </div>
@@ -150,9 +270,9 @@ require __DIR__ . '/../includes/head.php';
           <div class="col-md-6">
             <div class="lr-card h-100">
               <div class="lr-card-body">
-                <div class="lr-stat-label">Total reviews submitted</div>
-                <div class="lr-stat-value mt-1"><?= (int)$total_reviews ?></div>
-                <div class="lr-stat-subtext">Saved in expert_reviews.</div>
+                <div class="lr-stat-label">Average rating</div>
+                <div class="lr-stat-value mt-1"><?= $total_reviews ? h(number_format($avg_rating, 2)) : '—' ?></div>
+                <div class="lr-stat-subtext">Based on trainee reviews.</div>
               </div>
             </div>
           </div>
@@ -160,9 +280,9 @@ require __DIR__ . '/../includes/head.php';
           <div class="col-md-6">
             <div class="lr-card h-100">
               <div class="lr-card-body">
-                <div class="lr-stat-label">Average rating given</div>
-                <div class="lr-stat-value mt-1"><?= $total_reviews ? h(number_format($avg_rating, 2)) : '—' ?></div>
-                <div class="lr-stat-subtext">Mean of your submitted ratings.</div>
+                <div class="lr-stat-label">Total reviews</div>
+                <div class="lr-stat-value mt-1"><?= (int)$total_reviews ?></div>
+                <div class="lr-stat-subtext">Count of approved reviews.</div>
               </div>
             </div>
           </div>
@@ -171,14 +291,14 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-card">
               <div class="lr-card-header d-flex justify-content-between align-items-center">
                 <div>
-                  <div class="lr-section-title mb-1">Activity</div>
-                  <div class="lr-section-heading mb-0">Latest review</div>
+                  <div class="lr-section-title mb-1">Reviews</div>
+                  <div class="lr-section-heading mb-0">Your trainer feedback</div>
                 </div>
-                <a class="small text-decoration-none" href="<?= $BASE_URL ?>/coach/review-history.php">View history</a>
+                <a class="small text-decoration-none" href="<?= $BASE_URL ?>/coach/reviews.php">View reviews</a>
               </div>
               <div class="lr-card-body">
                 <div class="lr-stat-subtext mb-0">
-                  <?= $latest_review ? "Last submitted: " . h(fmtDT((string)$latest_review)) : "No reviews submitted yet." ?>
+                  Reviews affect how trainees filter/search trainers.
                 </div>
               </div>
             </div>
