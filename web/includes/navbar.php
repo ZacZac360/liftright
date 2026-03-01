@@ -251,7 +251,11 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/dashboard.php">Dashboard</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sessions.php">Sessions</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/assign-trainer.php">Assign Trainer</a></li>
-
+            <li class="nav-item">
+              <a class="nav-link" href="<?= $BASE_URL ?>/trainee/trainer-info.php">
+                Trainer Info
+              </a>
+            </li>
           <?php elseif ($role === 'trainer'): ?>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Dashboard</a></li>
             <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/review-history.php">Review History</a></li>
@@ -262,6 +266,12 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                 <?php if ($invite_unread > 0): ?>
                   <span class="lr-dot-pill"><?= (int)$invite_unread ?></span>
                 <?php endif; ?>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a class="nav-link" href="<?= $BASE_URL ?>/coach/reviews.php">
+                Reviews
               </a>
             </li>
 
@@ -292,6 +302,12 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                 <?php if ($pending_profile_requests > 0): ?>
                   <span class="lr-dot-pill"><?= (int)$pending_profile_requests ?></span>
                 <?php endif; ?>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a class="nav-link" href="<?= $BASE_URL ?>/admin/reviews.php">
+                Review Moderation
               </a>
             </li>
 
@@ -446,7 +462,11 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
 
               <?php if ($role === 'user'): ?>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/trainee/assign-trainer.php"><i class="fa-regular fa-id-badge me-2"></i>Assign Trainer</a></li>
-                
+                <li class="nav-item">
+                  <a class="nav-link" href="<?= $BASE_URL ?>/trainee/trainer-info.php">
+                    Trainer Info
+                  </a>
+                </li>
                 <li><hr class="dropdown-divider"></li>
 
                 <li class="px-3 py-2">
