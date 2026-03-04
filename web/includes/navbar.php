@@ -458,6 +458,15 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                     <span class="ms-2 lr-dot-pill"><?= (int)$invite_unread ?></span>
                   <?php endif; ?>
                 </a></li>
+                <li class="px-3 py-2">
+                  <div class="small fw-semibold mb-1">Theme</div>
+                  <select id="lrThemeSelect" class="form-select form-select-sm">
+                    <option value="default"  <?= $theme==='default' ? 'selected' : '' ?>>Default</option>
+                    <option value="light"    <?= $theme==='light' ? 'selected' : '' ?>>Light</option>
+                    <option value="dark"     <?= $theme==='dark' ? 'selected' : '' ?>>Dark</option>
+                    <option value="contrast" <?= $theme==='contrast' ? 'selected' : '' ?>>High Contrast</option>
+                  </select>
+                </li>
               <?php endif; ?>
 
               <?php if ($role === 'user'): ?>

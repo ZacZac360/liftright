@@ -59,11 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $stmt = $mysqli->prepare("
         SELECT user_id, full_name, email, password_hash, role, account_status,
-               email_verified_at, twofa_enabled,
-               failed_login_attempts, lock_until
-        FROM users
-        WHERE email = ?
-        LIMIT 1
+       theme,
+       email_verified_at, twofa_enabled,
+       failed_login_attempts, lock_until
+      FROM users
+      WHERE email = ?
+      LIMIT 1
       ");
       $stmt->bind_param("s", $email);
       $stmt->execute();

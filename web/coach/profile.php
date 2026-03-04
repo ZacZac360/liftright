@@ -219,11 +219,32 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-stat-subtext"><?= $u['years_experience'] === null ? '—' : (int)$u['years_experience'] ?></div>
 
             <div class="lr-stat-label mt-3">Specializations</div>
+            <div class="lr-stat-subtext">
+              <?php
+                $specRaw = $u['specializations'] ?? '';
+                $out = '—';
+
+                if (is_string($specRaw) && trim($specRaw) !== '') {
+                  $trim = trim($specRaw);
+
+                  // If it's JSON, decode to a nice comma list
+                  $decoded = json_decode($trim, true);
+                  if (is_array($decoded)) {
+                    $decoded = array_values(array_filter(array_map('trim', $decoded), fn($x) => $x !== ''));
+                    $out = $decoded ? implode(', ', $decoded) : '—';
+                  } else {
+                    // Otherwise treat as normal string / CSV
+                    $out = $trim;
+                  }
+                }
+
+                echo h($out);
+              ?>
+            </div>
 
             <hr class="border-secondary my-4">
 
             <div class="d-flex justify-content-between align-items-center">
-
               <div>
                 <div class="lr-stat-label">Accepting New Trainees</div>
                 <div class="lr-stat-subtext">
@@ -238,17 +259,7 @@ require __DIR__ . '/../includes/head.php';
                   <?= $u['accepting_trainees'] ? 'Disable' : 'Enable' ?>
                 </button>
               </form>
-
             </div>
-
-            <div class="lr-stat-subtext">
-              <?php
-                $spec = $u['specializations'];
-                if (!$spec) echo '—';
-                else echo h(is_string($spec) ? $spec : json_encode($spec));
-              ?>
-            </div>
-
             <?php if (!$pending): ?>
               <a class="btn btn-outline-light mt-3"
                  href="<?= $BASE_URL ?>/coach/edit-profile.php">

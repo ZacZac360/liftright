@@ -123,54 +123,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $flash = "Updated account status successfully.";
       $flash_kind = 'success';
     }
-
+    
     elseif ($action === 'unlink_trainer') {
 
-      // 1) Unlink user record
-      $stmt = $mysqli->prepare("UPDATE users SET trainer_id = NULL WHERE user_id=? AND role='user'");
+      // Get current trainer_id BEFORE unlinking
+      $stmt = $mysqli->prepare("SELECT trainer_id FROM users WHERE user_id=? AND role='user' LIMIT 1");
       $stmt->bind_param("i", $user_id);
       $stmt->execute();
+      $row = $stmt->get_result()->fetch_assoc();
       $stmt->close();
 
-      // 2) Resolve latest unlink request so it stops counting as "pending"
-      if (table_exists($mysqli, 'trainer_invites')) {
-        $stmt = $mysqli->prepare("
-          UPDATE trainer_invites
-          SET status = 'cancelled', responded_at = NOW()
-          WHERE trainee_id = ? AND status = 'unlink_requested'
-          ORDER BY created_at DESC
-          LIMIT 1
-        ");
+      $trainer_id = (int)($row['trainer_id'] ?? 0);
+      if ($trainer_id <= 0) {
+        throw new Exception("This trainee is not currently linked to a trainer.");
+      }
+
+      $mysqli->begin_transaction();
+
+      try {
+
+        // 1) Unlink in users table
+        $stmt = $mysqli->prepare("UPDATE users SET trainer_id = NULL WHERE user_id=? AND role='user' LIMIT 1");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
         $stmt->close();
-      }
 
-      // (optional) Notify trainee that unlink was approved (if you want)
-      if ($canNotify) {
-        $type = 'system';
-        $msg  = "Your trainer unlink request has been approved.";
-        $from = $self_id ?: null;
+        // 2) Resolve unlink request WITHOUT UNIQUE collision
+        if (table_exists($mysqli, 'trainer_invites')) {
 
-        if ($from) {
-          $ins = $mysqli->prepare("
-            INSERT INTO notifications (user_id, notif_type, message, from_user_id)
-            VALUES (?, ?, ?, ?)
+          // 2a) Find latest unlink_requested invite for this pair
+          $stmt = $mysqli->prepare("
+            SELECT invite_id
+            FROM trainer_invites
+            WHERE trainee_id=? AND trainer_id=? AND status='unlink_requested'
+            ORDER BY created_at DESC
+            LIMIT 1
           ");
-          $ins->bind_param("issi", $user_id, $type, $msg, $from);
-        } else {
-          $ins = $mysqli->prepare("
-            INSERT INTO notifications (user_id, notif_type, message, from_user_id)
-            VALUES (?, ?, ?, NULL)
-          ");
-          $ins->bind_param("iss", $user_id, $type, $msg);
+          $stmt->bind_param("ii", $user_id, $trainer_id);
+          $stmt->execute();
+          $inv = $stmt->get_result()->fetch_assoc();
+          $stmt->close();
+
+          if ($inv) {
+            $invite_id = (int)$inv['invite_id'];
+
+            // 2b) Delete any existing cancelled row for this pair (prevents duplicate key on update)
+            $stmt = $mysqli->prepare("
+              DELETE FROM trainer_invites
+              WHERE trainee_id=? AND trainer_id=? AND status='cancelled' AND invite_id <> ?
+            ");
+            $stmt->bind_param("iii", $user_id, $trainer_id, $invite_id);
+            $stmt->execute();
+            $stmt->close();
+
+            // 2c) Now it's safe to mark unlink_requested as cancelled
+            $stmt = $mysqli->prepare("
+              UPDATE trainer_invites
+              SET status='cancelled', responded_at=NOW()
+              WHERE invite_id = ?
+              LIMIT 1
+            ");
+            $stmt->bind_param("i", $invite_id);
+            $stmt->execute();
+            $stmt->close();
+
+          } else {
+            // No unlink_requested row exists. (Optional) clean up: mark latest accepted/pending as cancelled.
+            $stmt = $mysqli->prepare("
+              UPDATE trainer_invites
+              SET status='cancelled', responded_at=NOW()
+              WHERE trainee_id=? AND trainer_id=? AND status IN ('accepted','pending')
+              ORDER BY created_at DESC
+              LIMIT 1
+            ");
+            $stmt->bind_param("ii", $user_id, $trainer_id);
+            $stmt->execute();
+            $stmt->close();
+          }
         }
-        $ins->execute();
-        $ins->close();
-      }
 
-      $flash = "Unlinked trainer successfully.";
-      $flash_kind = 'success';
+        // Optional: notify trainee
+        if ($canNotify) {
+          $type = 'system';
+          $msg  = "Your trainer unlink request has been approved.";
+          $from = $self_id ?: null;
+
+          if ($from) {
+            $ins = $mysqli->prepare("
+              INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+              VALUES (?, ?, ?, ?)
+            ");
+            $ins->bind_param("issi", $user_id, $type, $msg, $from);
+          } else {
+            $ins = $mysqli->prepare("
+              INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+              VALUES (?, ?, ?, NULL)
+            ");
+            $ins->bind_param("iss", $user_id, $type, $msg);
+          }
+          $ins->execute();
+          $ins->close();
+        }
+
+        $mysqli->commit();
+
+        $flash = "Unlinked trainer successfully.";
+        $flash_kind = 'success';
+
+      } catch (Throwable $e) {
+        $mysqli->rollback();
+        throw $e;
+      }
     }
 
     elseif ($action === 'delete_user') {

@@ -82,11 +82,14 @@ function current_user_id(): int {
  * Expected $user keys: user_id, role, full_name, email, account_status
  */
 function set_auth_session(array $user): void {
-  $_SESSION['user_id'] = (int)($user['user_id'] ?? 0);
-  $_SESSION['role'] = (string)($user['role'] ?? '');
-  $_SESSION['full_name'] = (string)($user['full_name'] ?? '');
-  $_SESSION['email'] = (string)($user['email'] ?? '');
+  $_SESSION['user_id']        = (int)($user['user_id'] ?? 0);
+  $_SESSION['role']           = (string)($user['role'] ?? '');
+  $_SESSION['full_name']      = (string)($user['full_name'] ?? '');
+  $_SESSION['email']          = (string)($user['email'] ?? '');
   $_SESSION['account_status'] = (string)($user['account_status'] ?? 'pending');
+
+  // ✅ add this
+  $_SESSION['theme'] = (string)($user['theme'] ?? 'default');
 }
 
 // config/auth.php (append)
