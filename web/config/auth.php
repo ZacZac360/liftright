@@ -392,3 +392,84 @@ if (!function_exists('require_admin_password_confirm')) {
     }
   }
 }
+
+if (!function_exists('generate_reset_token_plain')) {
+  function generate_reset_token_plain(): string {
+    return bin2hex(random_bytes(32));
+  }
+}
+
+if (!function_exists('create_password_reset_token')) {
+  function create_password_reset_token(mysqli $db, int $user_id, int $ttl_seconds = 3600): string {
+    $stmt = $db->prepare("
+      UPDATE password_resets
+      SET consumed_at = NOW()
+      WHERE user_id = ? AND consumed_at IS NULL
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->close();
+
+    $plain = generate_reset_token_plain();
+    $hash = password_hash($plain, PASSWORD_DEFAULT);
+
+    $stmt = $db->prepare("
+      INSERT INTO password_resets (user_id, token_hash, expires_at)
+      VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+    ");
+    $stmt->bind_param("isi", $user_id, $hash, $ttl_seconds);
+    $stmt->execute();
+    $stmt->close();
+
+    return $plain;
+  }
+}
+
+if (!function_exists('validate_password_reset_token')) {
+  function validate_password_reset_token(mysqli $db, int $user_id, string $token): array {
+    $stmt = $db->prepare("
+      SELECT reset_id, token_hash, expires_at, consumed_at
+      FROM password_resets
+      WHERE user_id = ?
+      ORDER BY reset_id DESC
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) return ['ok' => false, 'reason' => 'no_token'];
+    if (!empty($row['consumed_at'])) return ['ok' => false, 'reason' => 'used'];
+
+    if (strtotime((string)$row['expires_at']) < time()) {
+      $rid = (int)$row['reset_id'];
+      $stmt = $db->prepare("UPDATE password_resets SET consumed_at = NOW() WHERE reset_id = ?");
+      $stmt->bind_param("i", $rid);
+      $stmt->execute();
+      $stmt->close();
+
+      return ['ok' => false, 'reason' => 'expired'];
+    }
+
+    if (!password_verify($token, (string)$row['token_hash'])) {
+      return ['ok' => false, 'reason' => 'invalid'];
+    }
+
+    return ['ok' => true, 'reason' => 'ok', 'reset_id' => (int)$row['reset_id']];
+  }
+}
+
+if (!function_exists('consume_password_reset_token')) {
+  function consume_password_reset_token(mysqli $db, int $reset_id): void {
+    $stmt = $db->prepare("
+      UPDATE password_resets
+      SET consumed_at = NOW()
+      WHERE reset_id = ?
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $reset_id);
+    $stmt->execute();
+    $stmt->close();
+  }
+}

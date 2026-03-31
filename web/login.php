@@ -1,5 +1,5 @@
 <?php
-// liftright/web/login.php  (ADMIN-APPROVAL ONLY • NO EMAIL VERIFICATION)
+// liftright/web/login.php  (EMAIL VERIFICATION + ADMIN APPROVAL)
 
 session_start();
 require_once __DIR__ . "/config/config.php";
@@ -21,17 +21,13 @@ if (isset($_GET['ok'])) {
 /* ---------- Status messages (account_status UX) ---------- */
 $statusMsg = "";
 if (isset($_GET['status'])) {
-  $s = (string)$_GET['status'];
+  $s = (string)($_GET['status'] ?? '');
   if ($s === 'pending')       $statusMsg = "Your account is awaiting admin approval.";
   elseif ($s === 'rejected')  $statusMsg = "Your account was rejected. Please contact the administrator.";
   elseif ($s === 'suspended') $statusMsg = "Your account has been suspended.";
 }
-if (isset($_GET['ok'])) {
-  $ok = (string)$_GET['ok'];
-}
 
 /* ---------- Helpers ---------- */
-
 function is_locked(array $u): bool {
   if (empty($u['lock_until'])) return false;
   return strtotime((string)$u['lock_until']) > time();
@@ -63,12 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $stmt = $mysqli->prepare("
         SELECT user_id, full_name, email, password_hash, role, account_status,
-       theme,
-       email_verified_at, twofa_enabled,
-       failed_login_attempts, lock_until
-      FROM users
-      WHERE email = ?
-      LIMIT 1
+               theme, email_verified_at, twofa_enabled,
+               failed_login_attempts, lock_until
+        FROM users
+        WHERE email = ?
+        LIMIT 1
       ");
       $stmt->bind_param("s", $email);
       $stmt->execute();
@@ -105,16 +100,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmt->execute();
           $stmt->close();
 
-          $err = $genericErr;
-
           auth_log($mysqli, $uid, 'login_fail', [
             'email' => $email,
             'reason' => 'bad_password'
           ]);
 
+          $err = $genericErr;
+
         } else {
 
-          // reset counters
           $stmt = $mysqli->prepare("
             UPDATE users
             SET failed_login_attempts = 0,
@@ -126,9 +120,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmt->execute();
           $stmt->close();
 
-          /**
-           * ACCOUNT MUST BE APPROVED BY ADMIN
-           */
+          if (empty($u['email_verified_at'])) {
+            $_SESSION['pre_verify_user_id'] = $uid;
+
+            auth_log($mysqli, $uid, 'login_blocked', [
+              'reason' => 'email_not_verified'
+            ]);
+
+            header("Location: {$BASE_URL}/verify-email.php");
+            exit;
+          }
+
           if ((string)$u['account_status'] !== 'approved') {
             auth_log($mysqli, $uid, 'login_blocked', [
               'reason' => 'account_not_approved',
@@ -138,9 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
           }
 
-          /**
-           * FULL LOGIN (no 2FA here; keep your existing behavior)
-           */
           session_regenerate_id(true);
           set_auth_session($u);
 
@@ -165,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  /* ===================== REGISTER (ADMIN-APPROVAL ONLY; NO EMAIL VERIFICATION) ===================== */
+  /* ===================== REGISTER (EMAIL VERIFICATION FIRST) ===================== */
   elseif ($action === 'register') {
 
     $reg_role = (string)($_POST['reg_role'] ?? 'user');
@@ -173,12 +172,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $full  = trim((string)($_POST['full_name'] ?? ''));
     $email = trim((string)($_POST['reg_email'] ?? ''));
-    $birthdate = trim((string)($_POST['birthdate'] ?? ''));
-    $gender    = trim((string)($_POST['gender'] ?? ''));
-
     $pass1 = (string)($_POST['reg_password'] ?? '');
     $pass2 = (string)($_POST['reg_password2'] ?? '');
-
     $agree = (string)($_POST['agree'] ?? '');
 
     // trainer fields
@@ -207,29 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    // birthdate validation (optional)
-    $birthdateVal = null;
-    if (!$err && $birthdate !== "") {
-      $ts = strtotime($birthdate);
-      if (!$ts) $err = "Enter a valid birthdate.";
-      else {
-        $y = (int)date('Y', $ts);
-        $currentY = (int)date('Y');
-        if ($y < 1900 || $y > $currentY) $err = "Enter a realistic birthdate.";
-        else $birthdateVal = date('Y-m-d', $ts);
-      }
-    }
-
-    // gender validation (optional)
-    $genderVal = null;
-    $allowedGender = ['male','female','other','prefer_not_to_say',''];
-    if (!$err && !in_array($gender, $allowedGender, true)) {
-      $err = "Select a valid gender option.";
-    } else {
-      $genderVal = ($gender === '') ? null : $gender;
-    }
-
-    // trainer validation
     $allowed_cred = ['cpt','scs','pt','student','other'];
     if (!$err && $reg_role === 'trainer') {
       if ($affiliation === '') $err = "Trainer applications require an affiliation/organization.";
@@ -249,15 +221,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$err) {
-      // check duplicates in users ONLY
       $stmt = $mysqli->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
       $stmt->bind_param("s", $email);
       $stmt->execute();
       $existsUser = $stmt->get_result()->fetch_assoc();
       $stmt->close();
 
+      $stmt = $mysqli->prepare("SELECT pending_id FROM pending_registrations WHERE email = ? LIMIT 1");
+      $stmt->bind_param("s", $email);
+      $stmt->execute();
+      $existsPending = $stmt->get_result()->fetch_assoc();
+      $stmt->close();
+
       if ($existsUser) {
         $err = "That email is already registered. Try logging in.";
+      } elseif ($existsPending) {
+        $_SESSION['pre_verify_pending_id'] = (int)$existsPending['pending_id'];
+        header("Location: {$BASE_URL}/verify-email.php");
+        exit;
       } else {
 
         $role = ($reg_role === 'trainer') ? 'trainer' : 'user';
@@ -266,7 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mysqli->begin_transaction();
 
         try {
-          // (Trainer only) save proof file
           $safeName = null;
           $mime = null;
 
@@ -298,33 +278,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
           }
 
-          // create user immediately, but PENDING approval
-          // NOTE: if your `users` table doesn't have `age`, remove it from insert/bind.
-          $stmt = $mysqli->prepare("
-            INSERT INTO users (full_name, email, password_hash, role, birthdate, gender, account_status, twofa_enabled)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', 0)
-          ");
-          $stmt->bind_param("ssssss", $full, $email, $hash, $role, $birthdateVal, $genderVal);
-          $stmt->execute();
-          $newUserId = (int)$stmt->insert_id;
-          $stmt->close();
-
-          // trainer application row
           if ($reg_role === 'trainer') {
             $stmt = $mysqli->prepare("
-              INSERT INTO trainer_applications
-                (user_id, affiliation, credential_type, credential_ref, statement, proof_file, status)
+              INSERT INTO pending_registrations
+                (full_name, email, password_hash, role, age, affiliation, credential_type, credential_ref, statement, proof_file, proof_mime)
               VALUES
-                (?, ?, ?, ?, ?, ?, 'pending')
+                (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
             ");
-            $stmt->bind_param("isssss", $newUserId, $affiliation, $credential_type, $credential_ref, $statement, $safeName);
-            $stmt->execute();
-            $stmt->close();
+            $stmt->bind_param(
+              "ssssssssss",
+              $full,
+              $email,
+              $hash,
+              $role,
+              $affiliation,
+              $credential_type,
+              $credential_ref,
+              $statement,
+              $safeName,
+              $mime
+            );
+          } else {
+            $stmt = $mysqli->prepare("
+              INSERT INTO pending_registrations
+                (full_name, email, password_hash, role, age)
+              VALUES
+                (?, ?, ?, ?, NULL)
+            ");
+            $stmt->bind_param(
+              "ssss",
+              $full,
+              $email,
+              $hash,
+              $role
+            );
           }
+
+          $stmt->execute();
+          $pendingId = (int)$stmt->insert_id;
+          $stmt->close();
 
           $mysqli->commit();
 
-          header("Location: {$BASE_URL}/login.php?status=pending&ok=");
+          $_SESSION['pre_verify_pending_id'] = $pendingId;
+
+          auth_log($mysqli, null, 'register_pending', [
+            'email' => $email,
+            'role' => $role,
+            'pending_id' => $pendingId
+          ]);
+
+          header("Location: {$BASE_URL}/verify-email.php");
           exit;
 
         } catch (Throwable $e) {
@@ -356,7 +360,7 @@ require __DIR__ . "/includes/head.php";
 
       <ul class="lr-auth-bullets">
         <li><span class="lr-dot"></span><span>Role-based access (Trainee / Trainer / Admin)</span></li>
-        <li><span class="lr-dot"></span><span>No email verification (testing mode)</span></li>
+        <li><span class="lr-dot"></span><span>Email verification required before account activation</span></li>
         <li><span class="lr-dot"></span><span>Admin approval workflow for accounts</span></li>
       </ul>
     </div>
@@ -373,13 +377,11 @@ require __DIR__ . "/includes/head.php";
       <?php if ($ok): ?><div class="alert alert-success"><?= h($ok) ?></div><?php endif; ?>
       <?php if ($err): ?><div class="alert alert-danger"><?= h($err) ?></div><?php endif; ?>
 
-      <!-- Tabs -->
       <div class="lr-auth-tabs" role="tablist" aria-label="Auth tabs">
         <button type="button" class="lr-auth-tab active" data-tab="login">Sign in</button>
         <button type="button" class="lr-auth-tab" data-tab="register">Create account</button>
       </div>
 
-      <!-- LOGIN PANEL -->
       <div class="lr-auth-panel active" id="panel-login">
         <form method="post" class="d-grid gap-2" autocomplete="off">
           <input type="hidden" name="action" value="login">
@@ -398,10 +400,13 @@ require __DIR__ . "/includes/head.php";
           </div>
 
           <button class="btn btn-primary mt-2">Login</button>
+
+          <div class="mt-2 text-end">
+            <a class="lr-link" href="<?= $BASE_URL ?>/forgot-password.php">Forgot password?</a>
+          </div>
         </form>
       </div>
 
-      <!-- REGISTER PANEL -->
       <div class="lr-auth-panel" id="panel-register">
         <form method="post" class="d-grid gap-2" id="regForm" enctype="multipart/form-data" autocomplete="off">
           <input type="hidden" name="action" value="register">
@@ -412,10 +417,9 @@ require __DIR__ . "/includes/head.php";
               <option value="user" selected>Trainee</option>
               <option value="trainer">Trainer</option>
             </select>
-            <div class="form-text text-muted">Trainer registration requires proof upload and admin approval.</div>
+            <div class="form-text text-muted">Trainer registration requires proof upload, email verification, and admin approval.</div>
           </div>
 
-          <!-- Trainer-only fields -->
           <div class="lr-trainer-only" style="display:none;" id="trainerFields">
             <div>
               <label class="form-label">Affiliation / Organization</label>
@@ -456,7 +460,7 @@ require __DIR__ . "/includes/head.php";
             </div>
 
             <div class="alert alert-info" style="margin: 8px 0 0;">
-              Trainer accounts stay <b>pending</b> until an admin reviews the uploaded proof.
+              Trainer accounts require email verification first, then stay <b>pending</b> until an admin reviews the uploaded proof.
             </div>
           </div>
 
@@ -472,23 +476,6 @@ require __DIR__ . "/includes/head.php";
             <input name="reg_email" type="email" class="form-select" required
                    placeholder="you@example.com"
                    value="<?= h($_POST['reg_email'] ?? '') ?>">
-          </div>
-
-          <div>
-            <label class="form-label">Birthdate (optional)</label>
-            <input name="birthdate" type="date" class="form-select"
-                  value="<?= h($_POST['birthdate'] ?? '') ?>">
-          </div>
-
-          <div>
-            <label class="form-label">Gender (optional)</label>
-            <select name="gender" class="form-select">
-              <option value="">Prefer not to say</option>
-              <option value="male" <?= (($_POST['gender'] ?? '')==='male')?'selected':'' ?>>Male</option>
-              <option value="female" <?= (($_POST['gender'] ?? '')==='female')?'selected':'' ?>>Female</option>
-              <option value="other" <?= (($_POST['gender'] ?? '')==='other')?'selected':'' ?>>Other</option>
-              <option value="prefer_not_to_say" <?= (($_POST['gender'] ?? '')==='prefer_not_to_say')?'selected':'' ?>>Prefer not to say</option>
-            </select>
           </div>
 
           <div class="lr-pass-row">
@@ -535,7 +522,6 @@ require __DIR__ . "/includes/head.php";
 </div>
 
 <script>
-  // Tabs toggle
   const tabs = document.querySelectorAll('.lr-auth-tab');
   const loginPanel = document.getElementById('panel-login');
   const regPanel   = document.getElementById('panel-register');
@@ -551,7 +537,6 @@ require __DIR__ . "/includes/head.php";
     });
   });
 
-  // Show/hide password
   document.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', () => {
       const sel = btn.getAttribute('data-toggle');
@@ -561,7 +546,6 @@ require __DIR__ . "/includes/head.php";
     });
   });
 
-  // Trainer fields toggle
   const regRole = document.getElementById('regRole');
   const trainerFields = document.getElementById('trainerFields');
   function syncTrainerFields(){
@@ -573,7 +557,6 @@ require __DIR__ . "/includes/head.php";
     syncTrainerFields();
   }
 
-  // Password strength rules
   const pass1 = document.getElementById('regPass');
   const pass2 = document.getElementById('regPass2');
   const bar = document.getElementById('passBar');
