@@ -276,7 +276,7 @@ require __DIR__ . '/../includes/head.php';
 
             <div class="col-md-6">
               <label class="form-label lr-stat-label">Gender</label>
-              <select class="form-control" name="gender" <?= $pending ? 'disabled' : '' ?>>
+              <select class="form-select" name="gender" <?= $pending ? 'disabled' : '' ?>>
                 <?php $g = (string)($user['gender'] ?? ''); ?>
                 <option value="" <?= $g===''?'selected':'' ?>>Prefer not to say</option>
                 <option value="male" <?= $g==='male'?'selected':'' ?>>Male</option>
@@ -293,7 +293,7 @@ require __DIR__ . '/../includes/head.php';
             </div>
 
             <div class="col-md-6">
-              <label class="form-label lr-stat-label">Qualification</label>
+              <label class="form-label lr-stat-label">Main qualification</label>
               <input class="form-control" name="qualification"
                      value="<?= h((string)($user['qualification'] ?? '')) ?>" <?= $pending ? 'disabled' : '' ?>>
             </div>
@@ -306,7 +306,7 @@ require __DIR__ . '/../includes/head.php';
             </div>
 
             <div class="col-12">
-              <label class="form-label lr-stat-label">Specializations (comma-separated)</label>
+              <label class="form-label lr-stat-label">Specializations</label>
               <?php
                 $spec = $user['specializations'];
                 $specText = '';
@@ -322,16 +322,17 @@ require __DIR__ . '/../includes/head.php';
                 }
               ?>
               <input class="form-control" name="specializations"
-                     value="<?= h($specText) ?>" <?= $pending ? 'disabled' : '' ?>>
+                    placeholder="Example: Strength training, Hypertrophy, Rehab"
+                    value="<?= h($specText) ?>" <?= $pending ? 'disabled' : '' ?>>
             </div>
 
             <div class="col-12">
-              <label class="form-label lr-stat-label">Profile photo (upload)</label>
+              <label class="form-label lr-stat-label">Profile photo</label>
               <input id="photoFile" type="file" name="profile_photo" class="form-control"
                      accept=".jpg,.jpeg,.png" <?= $pending ? 'disabled' : '' ?>>
 
               <div class="lr-stat-subtext mt-2">
-                Or take a photo using your camera (saved as an upload).
+                Upload JPG or PNG, or take a new photo using your camera.
               </div>
 
               <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">

@@ -14,6 +14,10 @@ if (!function_exists('h')) {
 $err = "";
 $ok  = "";
 
+if (isset($_GET['ok'])) {
+  $ok = (string)$_GET['ok'];
+}
+
 /* ---------- Status messages (account_status UX) ---------- */
 $statusMsg = "";
 if (isset($_GET['status'])) {
@@ -74,11 +78,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $genericErr = "Invalid credentials.";
 
       if (!$u) {
+        auth_log($mysqli, null, 'login_fail', [
+          'email' => $email,
+          'reason' => 'user_not_found'
+        ]);
         $err = $genericErr;
       } else {
         $uid = (int)$u['user_id'];
 
         if (is_locked($u)) {
+          auth_log($mysqli, $uid, 'login_fail', [
+            'email' => $email,
+            'reason' => 'locked'
+          ]);
           $err = "Too many attempts. Try again later.";
         } elseif (!password_verify($pass, (string)$u['password_hash'])) {
 
@@ -94,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmt->close();
 
           $err = $genericErr;
+
+          auth_log($mysqli, $uid, 'login_fail', [
+            'email' => $email,
+            'reason' => 'bad_password'
+          ]);
 
         } else {
 
@@ -113,6 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            * ACCOUNT MUST BE APPROVED BY ADMIN
            */
           if ((string)$u['account_status'] !== 'approved') {
+            auth_log($mysqli, $uid, 'login_blocked', [
+              'reason' => 'account_not_approved',
+              'account_status' => (string)$u['account_status']
+            ]);
             header("Location: {$BASE_URL}/login.php?status=" . urlencode((string)$u['account_status']));
             exit;
           }
@@ -127,6 +148,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmt->bind_param("i", $uid);
           $stmt->execute();
           $stmt->close();
+
+          auth_log($mysqli, $uid, 'login_success', [
+            'role' => (string)$u['role']
+          ]);
 
           $role = (string)$u['role'];
           if ($role === 'user')    { header("Location: {$BASE_URL}/trainee/dashboard.php"); exit; }
@@ -361,14 +386,14 @@ require __DIR__ . "/includes/head.php";
 
           <div>
             <label class="form-label">Email</label>
-            <input name="email" type="email" class="form-control" required
+            <input name="email" type="email" class="form-select" required
                    placeholder="you@example.com"
                    value="<?= h($_POST['email'] ?? '') ?>">
           </div>
 
           <div class="lr-pass-row">
             <label class="form-label">Password</label>
-            <input id="loginPass" name="password" type="password" class="form-control" required placeholder="••••••••">
+            <input id="loginPass" name="password" type="password" class="form-select" required placeholder="••••••••">
             <button class="lr-eye-btn" type="button" data-toggle="#loginPass" aria-label="Show password">👁</button>
           </div>
 
@@ -383,24 +408,24 @@ require __DIR__ . "/includes/head.php";
 
           <div>
             <label class="form-label">Register as</label>
-            <select name="reg_role" class="form-control" id="regRole" required>
+            <select name="reg_role" class="form-select" id="regRole" required>
               <option value="user" selected>Trainee</option>
               <option value="trainer">Trainer</option>
             </select>
-            <div class="form-text text-muted">Trainer requires credentials submission.</div>
+            <div class="form-text text-muted">Trainer registration requires proof upload and admin approval.</div>
           </div>
 
           <!-- Trainer-only fields -->
           <div class="lr-trainer-only" style="display:none;" id="trainerFields">
             <div>
               <label class="form-label">Affiliation / Organization</label>
-              <input name="affiliation" class="form-control" placeholder="Gym / School / Independent"
+              <input name="affiliation" class="form-select" placeholder="Gym / School / Independent"
                      value="<?= h($_POST['affiliation'] ?? '') ?>">
             </div>
 
             <div>
               <label class="form-label">Credential type</label>
-              <select name="credential_type" class="form-control">
+              <select name="credential_type" class="form-select">
                 <option value="">Select…</option>
                 <option value="cpt">Certified Personal Trainer</option>
                 <option value="scs">Strength & Conditioning Coach</option>
@@ -411,50 +436,53 @@ require __DIR__ . "/includes/head.php";
             </div>
 
             <div>
-              <label class="form-label">Credential ID / URL (optional)</label>
-              <input name="credential_ref" class="form-control" placeholder="ID number or link"
-                     value="<?= h($_POST['credential_ref'] ?? '') ?>">
+              <label class="form-label">Credential reference (optional)</label>
+              <input name="credential_ref" class="form-select" placeholder="License number, certificate ID, or reference link"
+                    value="<?= h($_POST['credential_ref'] ?? '') ?>">
             </div>
 
             <div>
               <label class="form-label">Short statement</label>
-              <textarea name="statement" class="form-control" rows="3"
-                        placeholder="Why do you want trainer access?"><?= h($_POST['statement'] ?? '') ?></textarea>
+              <textarea name="statement" class="form-select" rows="3"
+                    placeholder="Briefly explain your fitness/training background and why you are requesting trainer access."><?= h($_POST['statement'] ?? '') ?></textarea>
             </div>
 
             <div>
-              <label class="form-label">Upload proof (PDF/JPG/PNG, max 5MB)</label>
-              <input type="file" name="proof_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+              <label class="form-label">Proof of qualification</label>
+              <input type="file" name="proof_file" class="form-select" accept=".pdf,.jpg,.jpeg,.png">
+              <div class="form-text text-muted">
+                Upload 1 file only: certification, license, school endorsement, or similar proof. Accepted: PDF, JPG, PNG. Max 5MB.
+              </div>
             </div>
 
-            <div class="alert alert-info" style="margin: 4px 0 0;">
-              Trainer accounts remain <b>pending</b> until admin reviews credentials.
+            <div class="alert alert-info" style="margin: 8px 0 0;">
+              Trainer accounts stay <b>pending</b> until an admin reviews the uploaded proof.
             </div>
           </div>
 
           <div>
             <label class="form-label">Full name</label>
-            <input name="full_name" class="form-control" required
+            <input name="full_name" class="form-select" required
                    placeholder="Juan Dela Cruz"
                    value="<?= h($_POST['full_name'] ?? '') ?>">
           </div>
 
           <div>
             <label class="form-label">Email</label>
-            <input name="reg_email" type="email" class="form-control" required
+            <input name="reg_email" type="email" class="form-select" required
                    placeholder="you@example.com"
                    value="<?= h($_POST['reg_email'] ?? '') ?>">
           </div>
 
           <div>
             <label class="form-label">Birthdate (optional)</label>
-            <input name="birthdate" type="date" class="form-control"
+            <input name="birthdate" type="date" class="form-select"
                   value="<?= h($_POST['birthdate'] ?? '') ?>">
           </div>
 
           <div>
             <label class="form-label">Gender (optional)</label>
-            <select name="gender" class="form-control">
+            <select name="gender" class="form-select">
               <option value="">Prefer not to say</option>
               <option value="male" <?= (($_POST['gender'] ?? '')==='male')?'selected':'' ?>>Male</option>
               <option value="female" <?= (($_POST['gender'] ?? '')==='female')?'selected':'' ?>>Female</option>
@@ -465,7 +493,7 @@ require __DIR__ . "/includes/head.php";
 
           <div class="lr-pass-row">
             <label class="form-label">Password</label>
-            <input id="regPass" name="reg_password" type="password" class="form-control" required
+            <input id="regPass" name="reg_password" type="password" class="form-select" required
                    placeholder="At least 8 characters">
             <button class="lr-eye-btn" type="button" data-toggle="#regPass" aria-label="Show password">👁</button>
 
@@ -482,7 +510,7 @@ require __DIR__ . "/includes/head.php";
 
           <div class="lr-pass-row">
             <label class="form-label">Confirm password</label>
-            <input id="regPass2" name="reg_password2" type="password" class="form-control" required
+            <input id="regPass2" name="reg_password2" type="password" class="form-select" required
                    placeholder="Repeat password">
             <button class="lr-eye-btn" type="button" data-toggle="#regPass2" aria-label="Show password">👁</button>
             <div class="form-text text-muted" id="matchText"></div>

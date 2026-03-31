@@ -4,6 +4,7 @@ session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../includes/profile_change_helpers.php';
+require_once __DIR__ . '/../config/audit.php';
 
 require_role(['admin']);
 $page_title = "Profile Requests";
@@ -213,6 +214,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       notify_user($mysqli, $target_user_id, 'system', "Your profile update was approved by an admin.", $admin_id);
 
+      audit_admin_action($mysqli, $admin_id, 'profile_change_approved', $target_user_id, [
+        'request_id' => $request_id,
+        'admin_notes' => $admin_notes
+      ]);
+
       $flash = "Approved request #{$request_id}.";
 
     } elseif ($action === 'reject') {
@@ -226,9 +232,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->execute();
       $stmt->close();
 
-      notify_user($mysqli, $target_user_id, 'system', "Your profile update was rejected by an admin.", $admin_id);
+    notify_user($mysqli, $target_user_id, 'system', "Your profile update was rejected by an admin.", $admin_id);
 
-      $flash = "Rejected request #{$request_id}.";
+    audit_admin_action($mysqli, $admin_id, 'profile_change_rejected', $target_user_id, [
+      'request_id' => $request_id,
+      'admin_notes' => $admin_notes
+    ]);
+
+    $flash = "Rejected request #{$request_id}.";
 
     } else {
       throw new Exception("Unknown action.");

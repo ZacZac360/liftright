@@ -7,21 +7,19 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
   session_start();
 }
 
-/**
- * Basic check (session presence only)
- */
+require_once __DIR__ . '/audit.php';
+
+/* =========================================================
+   BASIC AUTH
+========================================================= */
+
 function is_logged_in(): bool {
   return isset($_SESSION['user_id'], $_SESSION['role']);
 }
 
-/**
- * Stronger gate: user must be logged in AND approved.
- * If not approved, force logout and redirect to login with status flag.
- */
 function require_approved(string $redirectTo = "/login.php"): void {
   global $BASE_URL;
 
-  // Not logged in at all
   if (!is_logged_in()) {
     header("Location: {$BASE_URL}{$redirectTo}");
     exit;
@@ -29,39 +27,37 @@ function require_approved(string $redirectTo = "/login.php"): void {
 
   $status = (string)($_SESSION['account_status'] ?? 'approved');
 
-  // Allow only approved users
   if ($status !== 'approved') {
-    // Kill session for safety
     $_SESSION = [];
+
     if (ini_get("session.use_cookies")) {
       $params = session_get_cookie_params();
-      setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
+      setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params["path"],
+        $params["domain"],
+        $params["secure"],
+        $params["httponly"]
       );
     }
+
     session_destroy();
 
-    // Redirect with status param
-    $q = urlencode($status); // pending / rejected / suspended
+    $q = urlencode($status);
     header("Location: {$BASE_URL}{$redirectTo}?status={$q}");
     exit;
   }
 }
 
-/**
- * Use this for any protected page. This now enforces "approved".
- */
 function require_login(string $redirectTo = "/login.php"): void {
-  // require_approved already checks is_logged_in internally
   require_approved($redirectTo);
 }
 
-/**
- * Role gate (also enforces approved via require_login)
- */
 function require_role(array $roles, string $redirectTo = "/index.php"): void {
   global $BASE_URL;
+
   require_login();
 
   $role = (string)($_SESSION['role'] ?? '');
@@ -75,43 +71,39 @@ function current_user_id(): int {
   return (int)($_SESSION['user_id'] ?? 0);
 }
 
-/**
- * Call this right after successful login query.
- * Ensures required session keys exist consistently.
- *
- * Expected $user keys: user_id, role, full_name, email, account_status
- */
 function set_auth_session(array $user): void {
   $_SESSION['user_id']        = (int)($user['user_id'] ?? 0);
   $_SESSION['role']           = (string)($user['role'] ?? '');
   $_SESSION['full_name']      = (string)($user['full_name'] ?? '');
   $_SESSION['email']          = (string)($user['email'] ?? '');
   $_SESSION['account_status'] = (string)($user['account_status'] ?? 'pending');
-
-  // ✅ add this
-  $_SESSION['theme'] = (string)($user['theme'] ?? 'default');
+  $_SESSION['theme']          = (string)($user['theme'] ?? 'default');
 }
 
-// config/auth.php (append)
+/* =========================================================
+   REQUEST META
+========================================================= */
 
 if (!function_exists('client_ip')) {
   function client_ip(): string {
-    // basic; fine for thesis / local
     return (string)($_SERVER['REMOTE_ADDR'] ?? '');
   }
 }
 
 if (!function_exists('client_ua')) {
   function client_ua(): string {
-    $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
-    return substr($ua, 0, 255);
+    return substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
   }
 }
 
+/* =========================================================
+   AUDIT LOG
+========================================================= */
+
 if (!function_exists('auth_log')) {
-    function auth_log(mysqli $db, $user_id, string $type, array $meta = []): void {
-    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
-    $ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+  function auth_log(mysqli $db, $user_id, string $type, array $meta = []): void {
+    $ip = client_ip();
+    $ua = client_ua();
     $meta_json = empty($meta) ? null : json_encode($meta, JSON_UNESCAPED_SLASHES);
 
     $stmt = $db->prepare("
@@ -119,7 +111,6 @@ if (!function_exists('auth_log')) {
       VALUES (?, ?, ?, ?, ?)
     ");
 
-    // allow NULL user_id
     if ($user_id === null) {
       $null = null;
       $stmt->bind_param("issss", $null, $type, $ip, $ua, $meta_json);
@@ -132,6 +123,10 @@ if (!function_exists('auth_log')) {
     $stmt->close();
   }
 }
+
+/* =========================================================
+   LOGIN OTP HELPERS
+========================================================= */
 
 if (!function_exists('generate_otp_code')) {
   function generate_otp_code(): string {
@@ -152,13 +147,12 @@ if (!function_exists('create_login_otp')) {
     $stmt->execute();
     $stmt->close();
 
-    return $code; // return plaintext ONLY so you can send via email (never store plaintext)
+    return $code;
   }
 }
 
 if (!function_exists('verify_latest_login_otp')) {
   function verify_latest_login_otp(mysqli $db, int $user_id, string $code): array {
-    // returns ['ok'=>bool, 'reason'=>string]
     $stmt = $db->prepare("
       SELECT otp_id, otp_hash, expires_at, attempts, consumed_at
       FROM login_otps
@@ -175,22 +169,20 @@ if (!function_exists('verify_latest_login_otp')) {
     if (!empty($otp['consumed_at'])) return ['ok' => false, 'reason' => 'used'];
     if ((int)$otp['attempts'] >= 5) return ['ok' => false, 'reason' => 'too_many_attempts'];
 
-    // expired?
     if (strtotime((string)$otp['expires_at']) < time()) {
       return ['ok' => false, 'reason' => 'expired'];
     }
 
     if (!password_verify($code, (string)$otp['otp_hash'])) {
-      // bump attempts
       $otp_id = (int)$otp['otp_id'];
       $stmt = $db->prepare("UPDATE login_otps SET attempts = attempts + 1 WHERE otp_id = ?");
       $stmt->bind_param("i", $otp_id);
       $stmt->execute();
       $stmt->close();
+
       return ['ok' => false, 'reason' => 'invalid'];
     }
 
-    // mark consumed
     $otp_id = (int)$otp['otp_id'];
     $stmt = $db->prepare("UPDATE login_otps SET consumed_at = NOW() WHERE otp_id = ?");
     $stmt->bind_param("i", $otp_id);
@@ -198,5 +190,205 @@ if (!function_exists('verify_latest_login_otp')) {
     $stmt->close();
 
     return ['ok' => true, 'reason' => 'ok'];
+  }
+}
+
+/* =========================================================
+   EMAIL VERIFICATION HELPERS
+========================================================= */
+
+if (!function_exists('create_user_email_otp_record')) {
+  function create_user_email_otp_record(mysqli $db, int $user_id, int $ttl_seconds = 900): string {
+    $stmt = $db->prepare("
+      UPDATE email_verifications
+      SET consumed_at = NOW()
+      WHERE user_id = ? AND consumed_at IS NULL
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->close();
+
+    $code = generate_otp_code();
+    $hash = password_hash($code, PASSWORD_DEFAULT);
+
+    $stmt = $db->prepare("
+      INSERT INTO email_verifications (user_id, token_hash, expires_at)
+      VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+    ");
+    $stmt->bind_param("isi", $user_id, $hash, $ttl_seconds);
+    $stmt->execute();
+    $stmt->close();
+
+    return $code;
+  }
+}
+
+if (!function_exists('create_pending_email_otp_record')) {
+  function create_pending_email_otp_record(mysqli $db, int $pending_id, int $ttl_seconds = 900): string {
+    $stmt = $db->prepare("
+      UPDATE email_verifications
+      SET consumed_at = NOW()
+      WHERE pending_id = ? AND consumed_at IS NULL
+    ");
+    $stmt->bind_param("i", $pending_id);
+    $stmt->execute();
+    $stmt->close();
+
+    $code = generate_otp_code();
+    $hash = password_hash($code, PASSWORD_DEFAULT);
+
+    $stmt = $db->prepare("
+      INSERT INTO email_verifications (pending_id, token_hash, expires_at)
+      VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+    ");
+    $stmt->bind_param("isi", $pending_id, $hash, $ttl_seconds);
+    $stmt->execute();
+    $stmt->close();
+
+    return $code;
+  }
+}
+
+if (!function_exists('verify_active_email_otp_for_user')) {
+  function verify_active_email_otp_for_user(mysqli $db, int $user_id, string $otp): array {
+    $stmt = $db->prepare("
+      SELECT verif_id, token_hash, expires_at
+      FROM email_verifications
+      WHERE user_id = ? AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) return ['ok' => false, 'reason' => 'no_active_code'];
+
+    if (strtotime((string)$row['expires_at']) < time()) {
+      $vid = (int)$row['verif_id'];
+      $stmt = $db->prepare("UPDATE email_verifications SET consumed_at = NOW() WHERE verif_id = ?");
+      $stmt->bind_param("i", $vid);
+      $stmt->execute();
+      $stmt->close();
+
+      return ['ok' => false, 'reason' => 'expired'];
+    }
+
+    if (!password_verify($otp, (string)$row['token_hash'])) {
+      return ['ok' => false, 'reason' => 'invalid'];
+    }
+
+    $vid = (int)$row['verif_id'];
+
+    $stmt = $db->prepare("UPDATE email_verifications SET consumed_at = NOW() WHERE verif_id = ?");
+    $stmt->bind_param("i", $vid);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $db->prepare("
+      UPDATE email_verifications
+      SET consumed_at = NOW()
+      WHERE user_id = ? AND consumed_at IS NULL
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->close();
+
+    return ['ok' => true, 'reason' => 'ok'];
+  }
+}
+
+if (!function_exists('verify_active_email_otp_for_pending')) {
+  function verify_active_email_otp_for_pending(mysqli $db, int $pending_id, string $otp): array {
+    $stmt = $db->prepare("
+      SELECT verif_id, token_hash, expires_at
+      FROM email_verifications
+      WHERE pending_id = ? AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $pending_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) return ['ok' => false, 'reason' => 'no_active_code'];
+
+    if (strtotime((string)$row['expires_at']) < time()) {
+      $vid = (int)$row['verif_id'];
+      $stmt = $db->prepare("UPDATE email_verifications SET consumed_at = NOW() WHERE verif_id = ?");
+      $stmt->bind_param("i", $vid);
+      $stmt->execute();
+      $stmt->close();
+
+      return ['ok' => false, 'reason' => 'expired'];
+    }
+
+    if (!password_verify($otp, (string)$row['token_hash'])) {
+      return ['ok' => false, 'reason' => 'invalid'];
+    }
+
+    $vid = (int)$row['verif_id'];
+
+    $stmt = $db->prepare("UPDATE email_verifications SET consumed_at = NOW() WHERE verif_id = ?");
+    $stmt->bind_param("i", $vid);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $db->prepare("
+      UPDATE email_verifications
+      SET consumed_at = NOW()
+      WHERE pending_id = ? AND consumed_at IS NULL
+    ");
+    $stmt->bind_param("i", $pending_id);
+    $stmt->execute();
+    $stmt->close();
+
+    return ['ok' => true, 'reason' => 'ok'];
+  }
+}
+
+if (!function_exists('mark_user_email_verified')) {
+  function mark_user_email_verified(mysqli $db, int $user_id): void {
+    $stmt = $db->prepare("
+      UPDATE users
+      SET email_verified_at = NOW()
+      WHERE user_id = ?
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->close();
+  }
+}
+
+/* =========================================================
+   ADMIN PASSWORD RE-CHECK
+========================================================= */
+
+if (!function_exists('require_admin_password_confirm')) {
+  function require_admin_password_confirm(mysqli $db, int $admin_id, string $plainPassword): void {
+    if ($admin_id <= 0) {
+      throw new Exception("Invalid admin session.");
+    }
+
+    if ($plainPassword === '') {
+      throw new Exception("Admin password is required.");
+    }
+
+    $stmt = $db->prepare("
+      SELECT password_hash
+      FROM users
+      WHERE user_id = ? AND role = 'admin'
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $admin_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row || !password_verify($plainPassword, (string)$row['password_hash'])) {
+      throw new Exception("Incorrect admin password.");
+    }
   }
 }

@@ -329,18 +329,18 @@ require __DIR__ . '/../includes/head.php';
 <div class="lr-page-wrapper">
   <div class="container lr-main-container py-4">
 
-    <div class="row mb-3 align-items-center">
-      <div class="col-md-8">
-        <div class="lr-section-title mb-1">Data</div>
-        <h1 class="lr-section-heading mb-1">Exports</h1>
-        <p class="lr-stat-subtext mb-0">Download CSV datasets for reporting and analysis (privacy-first, admin-only).</p>
-      </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/evaluation.php">
-          <i class="fa-solid fa-chart-line me-2"></i>Evaluation
-        </a>
-      </div>
+  <div class="row mb-3 align-items-center">
+    <div class="col-md-8">
+      <div class="lr-section-title mb-1">Data</div>
+      <h1 class="lr-section-heading mb-1">Exports</h1>
+      <p class="lr-stat-subtext mb-0">Filter first, then export the dataset you need.</p>
     </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/evaluation.php">
+        <i class="fa-solid fa-chart-line me-2"></i>View Evaluation
+      </a>
+    </div>
+  </div>
 
     <!-- Filters -->
     <div class="lr-card mb-3">
@@ -382,30 +382,30 @@ require __DIR__ . '/../includes/head.php';
           </div>
 
           <div class="col-md-4 d-grid">
-            <button class="btn btn-primary" type="submit">
-              <i class="fa-solid fa-filter me-2"></i>Apply filters
+            <button class="btn btn-primary lr-btn-strong" type="submit">
+              <i class="fa-solid fa-filter me-2"></i>Apply Filters
             </button>
           </div>
 
           <div class="col-md-4 d-grid">
             <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/exports.php">
-              Reset
+              Clear Filters
             </a>
           </div>
         </form>
 
         <?php if ($active_filters): ?>
           <div class="lr-stat-subtext mt-3 mb-0">
-            Active filters: <strong><?= h(implode(" • ", $active_filters)) ?></strong>
+            <strong>Active:</strong> <?= h(implode(" • ", $active_filters)) ?>
           </div>
         <?php else: ?>
           <div class="lr-stat-subtext mt-3 mb-0">
-            No filters applied. Downloads will include the most recent rows (within limits).
+            No filters applied.
           </div>
         <?php endif; ?>
 
         <div class="lr-stat-subtext mt-2 mb-0">
-          Privacy-first: exports include IDs and metrics only — no names or emails.
+          IDs and metrics only. No names or emails.
         </div>
       </div>
     </div>
@@ -461,18 +461,18 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-section-title mb-1">Dataset</div>
             <div class="lr-section-heading mb-1">Sessions</div>
             <p class="lr-stat-subtext mb-3">
-              <code>training_logs</code> with reviewed flag. Includes <strong>IDs + metrics only</strong>.
+              Training logs with review status.
             </p>
             <div class="d-flex gap-2 flex-wrap">
-              <a class="btn btn-primary" href="?download=sessions<?= h($qs) ?>">
-                <i class="fa-solid fa-file-csv me-2"></i>Download sessions.csv
+              <a class="btn btn-primary lr-btn-strong" href="?download=sessions<?= h($qs) ?>">
+                <i class="fa-solid fa-file-csv me-2"></i>Export Sessions CSV
               </a>
               <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/admin/evaluation.php">
-                <i class="fa-solid fa-chart-line me-2"></i>View KPIs
+                <i class="fa-solid fa-chart-line me-2"></i>Evaluation
               </a>
             </div>
             <div class="lr-stat-subtext mt-3 mb-0">
-              Columns: log_id, user_id, exercise_type, source_type, reps_total/good/bad, fatigue_flag, processing_ms, created_at, reviewed.
+              Includes IDs, exercise, rep totals, fatigue, processing time, date, and reviewed flag.
             </div>
           </div>
         </div>
@@ -484,13 +484,13 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-section-title mb-1">Dataset</div>
             <div class="lr-section-heading mb-1">Rep Metrics</div>
             <p class="lr-stat-subtext mb-3">
-              <code>rep_metrics</code> per-rep measurements (date filters apply).
+              Per-rep movement measurements.
             </p>
-            <a class="btn btn-primary" href="?download=rep_metrics<?= h($qs) ?>">
-              <i class="fa-solid fa-file-csv me-2"></i>Download rep_metrics.csv
+            <a class="btn btn-primary lr-btn-strong" href="?download=rep_metrics<?= h($qs) ?>">
+              <i class="fa-solid fa-file-csv me-2"></i>Export Rep Metrics CSV
             </a>
             <div class="lr-stat-subtext mt-3 mb-0">
-              Columns: rep_id, log_id, rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score, created_at.
+              Includes rep index, duration, ROM, trunk sway, confidence, label, anomaly score, and date.
             </div>
           </div>
         </div>
@@ -498,19 +498,19 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="col-md-6">
         <div class="lr-card h-100">
-          <div class="lr-card-body">
-            <div class="lr-section-title mb-1">Dataset</div>
-            <div class="lr-section-heading mb-1">SUS Responses</div>
-            <p class="lr-stat-subtext mb-3">
-              <code>sus_responses</code> (date filters apply).
-            </p>
-            <a class="btn btn-primary" href="?download=sus<?= h($qs) ?>">
-              <i class="fa-solid fa-file-csv me-2"></i>Download sus_responses.csv
-            </a>
-            <div class="lr-stat-subtext mt-3 mb-0">
-              Columns: sus_id, user_id, q1–q10, sus_score, created_at.
-            </div>
+         <div class="lr-card-body">
+          <div class="lr-section-title mb-1">Dataset</div>
+          <div class="lr-section-heading mb-1">SUS Responses</div>
+          <p class="lr-stat-subtext mb-3">
+            Usability survey results.
+          </p>
+          <a class="btn btn-primary lr-btn-strong" href="?download=sus<?= h($qs) ?>">
+            <i class="fa-solid fa-file-csv me-2"></i>Export SUS CSV
+          </a>
+          <div class="lr-stat-subtext mt-3 mb-0">
+            Includes user ID, Q1 to Q10, SUS score, and date.
           </div>
+        </div>
         </div>
       </div>
 
@@ -520,13 +520,13 @@ require __DIR__ . '/../includes/head.php';
             <div class="lr-section-title mb-1">Dataset</div>
             <div class="lr-section-heading mb-1">Expert Reviews</div>
             <p class="lr-stat-subtext mb-3">
-              <code>expert_reviews</code> joined to exercise_type (exercise/date filters apply). Includes <strong>trainer_id only</strong>.
+              Trainer review records by session and exercise.
             </p>
-            <a class="btn btn-primary" href="?download=expert_reviews<?= h($qs) ?>">
-              <i class="fa-solid fa-file-csv me-2"></i>Download expert_reviews.csv
+            <a class="btn btn-primary lr-btn-strong" href="?download=expert_reviews<?= h($qs) ?>">
+              <i class="fa-solid fa-file-csv me-2"></i>Export Expert Reviews CSV
             </a>
             <div class="lr-stat-subtext mt-3 mb-0">
-              Columns: review_id, log_id, trainer_id, rating, notes, marked_good_reps, marked_bad_reps, created_at, exercise_type.
+              Includes trainer ID, rating, notes, marked good/bad reps, date, and exercise.
             </div>
           </div>
         </div>

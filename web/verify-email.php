@@ -10,20 +10,55 @@ if (!function_exists('h')) {
 }
 
 $pending_id = (int)($_SESSION['pre_verify_pending_id'] ?? 0);
-if ($pending_id <= 0) {
-  header("Location: {$BASE_URL}/login.php");
-  exit;
+$user_id    = (int)($_SESSION['pre_verify_user_id'] ?? 0);
+
+$mode = null;
+$label_name = '';
+$label_email = '';
+
+if ($pending_id > 0) {
+  $stmt = $mysqli->prepare("
+    SELECT full_name, email
+    FROM pending_registrations
+    WHERE pending_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("i", $pending_id);
+  $stmt->execute();
+  $u = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+
+  if ($u) {
+    $mode = 'pending';
+    $label_name = (string)$u['full_name'];
+    $label_email = (string)$u['email'];
+  } else {
+    unset($_SESSION['pre_verify_pending_id'], $_SESSION['dev_verify_otp']);
+  }
 }
 
-// load pending user
-$stmt = $mysqli->prepare("SELECT full_name, email FROM pending_registrations WHERE pending_id=? LIMIT 1");
-$stmt->bind_param("i", $pending_id);
-$stmt->execute();
-$u = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+if ($mode === null && $user_id > 0) {
+  $stmt = $mysqli->prepare("
+    SELECT full_name, email
+    FROM users
+    WHERE user_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("i", $user_id);
+  $stmt->execute();
+  $u = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
 
-if (!$u) {
-  unset($_SESSION['pre_verify_pending_id'], $_SESSION['dev_verify_otp']);
+  if ($u) {
+    $mode = 'user';
+    $label_name = (string)$u['full_name'];
+    $label_email = (string)$u['email'];
+  } else {
+    unset($_SESSION['pre_verify_user_id'], $_SESSION['dev_verify_otp']);
+  }
+}
+
+if ($mode === null) {
   header("Location: {$BASE_URL}/login.php");
   exit;
 }
@@ -36,7 +71,7 @@ require __DIR__ . "/includes/head.php";
     <div class="lr-auth-brand mb-2">LiftRight</div>
     <div class="lr-auth-heading mb-1">Verify your email</div>
     <div class="lr-auth-subtext mb-3">
-      We’ll verify <b><?= h((string)$u['email']) ?></b> with a 6-digit code.
+      We’ll verify <b><?= h($label_email) ?></b> with a 6-digit code.
     </div>
 
     <div id="alertOk" class="alert alert-success" style="display:none;"></div>
@@ -124,14 +159,13 @@ require __DIR__ . "/includes/head.php";
     btnVerify.textContent = 'Verify';
 
     if (data.success) {
-      show(okBox, 'Verified! Redirecting...');
-      window.location.href = BASE_URL + '/login.php?status=pending';
+      show(okBox, data.message || 'Verified! Redirecting...');
+      window.location.href = data.redirect || (BASE_URL + '/login.php');
     } else {
       show(errBox, data.message || 'Verification failed.');
     }
   });
 
-  // auto-send on load
   resend();
 </script>
 </body>

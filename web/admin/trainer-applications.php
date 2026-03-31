@@ -4,6 +4,7 @@
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../config/audit.php';
 
 require_role(['admin']);
 
@@ -94,6 +95,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->execute();
       $stmt->close();
 
+      audit_admin_action($mysqli, $admin_id, 'trainer_application_approved', $user_id, [
+        'app_id' => $app_id,
+        'admin_notes' => $notes
+      ]);
+
       $flash = "Trainer application approved and account approved.";
       $flash_kind = "success";
     }
@@ -116,6 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->bind_param("i", $user_id);
       $stmt->execute();
       $stmt->close();
+
+      audit_admin_action($mysqli, $admin_id, 'trainer_application_rejected', $user_id, [
+        'app_id' => $app_id,
+        'admin_notes' => $notes
+      ]);
 
       $flash = "Trainer application rejected and account set to rejected.";
       $flash_kind = "warning";
@@ -205,7 +216,7 @@ require __DIR__ . '/../includes/head.php';
       <div class="col-md-8">
         <div class="lr-section-title mb-1">Administration</div>
         <h1 class="lr-section-heading mb-1">Trainer Applications</h1>
-        <p class="lr-stat-subtext mb-0">Review credential uploads and approve/reject trainer access.</p>
+        <p class="lr-stat-subtext mb-0">Review uploaded trainer proof, then approve or reject access.</p>
       </div>
     </div>
 
@@ -276,7 +287,7 @@ require __DIR__ . '/../includes/head.php';
                 <th>Affiliation</th>
                 <th>Status</th>
                 <th>Submitted</th>
-                <th>Proof</th>
+                <th>Uploaded Proof</th>
                 <th class="text-end">Actions</th>
               </tr>
             </thead>
@@ -325,11 +336,14 @@ require __DIR__ . '/../includes/head.php';
 
                   <td>
                     <?php if ($proofHref): ?>
-                      <a class="btn btn-sm btn-outline-light" href="<?= h($proofHref) ?>" target="_blank" rel="noopener">
-                        <i class="fa-regular fa-file-lines me-2"></i>Open
-                      </a>
+                      <div class="d-flex flex-column gap-2 align-items-start">
+                        <a class="btn btn-sm btn-outline-light" href="<?= h($proofHref) ?>" target="_blank" rel="noopener">
+                          <i class="fa-regular fa-file-lines me-2"></i>Open Proof
+                        </a>
+                        <span class="lr-stat-subtext">Accepted proof: PDF, JPG, PNG</span>
+                      </div>
                     <?php else: ?>
-                      <span class="lr-stat-subtext">—</span>
+                      <span class="lr-stat-subtext">No file uploaded</span>
                     <?php endif; ?>
                   </td>
 
@@ -363,7 +377,7 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="lr-card-body">
         <div class="lr-stat-subtext mb-0">
-          Notes: Approving/rejecting here also updates <code>users.account_status</code> for trainer accounts.
+          Approve or reject here after reviewing the uploaded trainer proof.
         </div>
       </div>
 

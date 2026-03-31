@@ -15,13 +15,19 @@ if (!function_exists('h')) {
 function badge_class(string $type): string {
   return match ($type) {
     'login_success', 'otp_verify_success', 'email_verify_success' => 'lr-badge lr-badge-good',
-    'login_fail', 'otp_verify_fail', 'email_verify_fail' => 'lr-badge lr-badge-danger',
+    'login_fail', 'otp_verify_fail', 'email_verify_fail', 'login_blocked' => 'lr-badge lr-badge-danger',
     'otp_sent', 'email_verify_sent' => 'lr-badge lr-badge-warning',
 
-    'admin_approve_account', 'trainer_application_approved', 'profile_change_approved' => 'lr-badge lr-badge-good',
-    'admin_reject_account', 'trainer_application_rejected', 'profile_change_rejected' => 'lr-badge lr-badge-danger',
-    'admin_suspend_account' => 'lr-badge lr-badge-warning',
-    'admin_unsuspend_account' => 'lr-badge lr-badge-good',
+    'trainer_application_approved',
+    'profile_change_approved',
+    'admin_set_role',
+    'admin_delete_user' => 'lr-badge lr-badge-good',
+
+    'trainer_application_rejected',
+    'profile_change_rejected' => 'lr-badge lr-badge-danger',
+
+    'admin_set_status',
+    'admin_unlink_trainer' => 'lr-badge lr-badge-warning',
 
     default => 'lr-badge lr-badge-neutral',
   };

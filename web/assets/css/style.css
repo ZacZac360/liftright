@@ -274,6 +274,18 @@ hr, .dropdown-divider{
 .liftright-navbar .nav-link:focus{
   color: var(--lr-text) !important;
 }
+
+.liftright-navbar .nav-link.active{
+  color: var(--lr-text) !important;
+  background: color-mix(in srgb, var(--lr-accent) 14%, transparent);
+  border-radius: .8rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lr-accent) 30%, transparent);
+}
+
+.liftright-navbar .nav-link.active .lr-dot-pill{
+  transform: scale(1.02);
+}
+
 .navbar-toggler{
   border-color: color-mix(in srgb, var(--lr-border) 80%, transparent) !important;
 }
@@ -1019,3 +1031,64 @@ select option {
   border-bottom: 2px solid #4f8cff;
 }
 
+.lr-live-topbar-actions{
+  display:flex;
+  gap:.75rem;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+.lr-btn-strong{
+  min-width: 190px;
+  font-weight: 800;
+}
+
+.lr-live-main-instruction{
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.lr-live-feedback-main{
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.lr-live-feedback-sub{
+  font-size: 1rem;
+  opacity: .95;
+}
+
+.lr-live-debug{
+  font-size: .72rem;
+  color: var(--lr-text-soft);
+  opacity: .72;
+}
+
+.lr-live-idle-title{
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.lr-live-quick-list{
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--lr-text-muted);
+}
+
+.lr-live-quick-list li + li{
+  margin-top: .45rem;
+}
+
+@media (max-width: 991.98px){
+  .lr-live-topbar-actions{
+    justify-content:stretch;
+  }
+
+  .lr-live-topbar-actions .btn{
+    flex: 1 1 0;
+  }
+
+  .lr-btn-strong{
+    min-width: 0;
+  }
+}

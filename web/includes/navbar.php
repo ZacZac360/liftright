@@ -217,6 +217,11 @@ if ($role === 'user') {
   $dashboard_href = $BASE_URL . '/admin/dashboard.php';
   $profile_href   = $BASE_URL . '/admin/profile.php'; // create later if needed
 }
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+
+function nav_active(string $needle, string $currentPath): string {
+  return str_contains($currentPath, $needle) ? ' active' : '';
+}
 
 // Notifications "open" target when log_id exists
 function notif_open_href(string $baseUrl, string $role, int $log_id): string {
@@ -248,20 +253,20 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
         <?php else: ?>
 
           <?php if ($role === 'user'): ?>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/dashboard.php">Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/sessions.php">Sessions</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/trainee/assign-trainer.php">Assign Trainer</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/trainee/dashboard.php', $currentPath) ?>" href="<?= $BASE_URL ?>/trainee/dashboard.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/trainee/sessions.php', $currentPath) || nav_active('/trainee/session-view.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/trainee/sessions.php">Sessions</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/trainee/assign-trainer.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/trainee/assign-trainer.php">Assign Trainer</a></li>
             <li class="nav-item">
-              <a class="nav-link" href="<?= $BASE_URL ?>/trainee/trainer-info.php">
+              <a class="nav-link<?= nav_active('/trainee/trainer-info.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/trainee/trainer-info.php">
                 Trainer Info
               </a>
             </li>
           <?php elseif ($role === 'trainer'): ?>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/dashboard.php">Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/coach/review-history.php">Review History</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/coach/dashboard.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/coach/dashboard.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/coach/review-history.php', $currentPath) || nav_active('/coach/review-session.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/coach/review-history.php">Review History</a></li>
             
             <li class="nav-item">
-              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/coach/invitations.php">
+              <a class="nav-link d-flex align-items-center gap-2<?= nav_active('/coach/invitations.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/coach/invitations.php">
                 Invitations
                 <?php if ($invite_unread > 0): ?>
                   <span class="lr-dot-pill"><?= (int)$invite_unread ?></span>
@@ -270,15 +275,15 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
             </li>
 
             <li class="nav-item">
-              <a class="nav-link" href="<?= $BASE_URL ?>/coach/reviews.php">
+              <a class="nav-link<?= nav_active('/coach/reviews.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/coach/reviews.php">
                 Reviews
               </a>
             </li>
 
           <?php elseif ($role === 'admin'): ?>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/admin/dashboard.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
             
-           <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/users.php">
+           <a class="nav-link d-flex align-items-center gap-2<?= nav_active('/admin/users.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/users.php">
               Users
               <?php if ($users_badge > 0): ?>
                 <span class="lr-dot-pill"><?= (int)$users_badge ?></span>
@@ -286,7 +291,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
             </a>
             
             <li class="nav-item">
-              <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/trainer-applications.php">
+              <a class="nav-link d-flex align-items-center gap-2<?= nav_active('/admin/trainer-applications.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/trainer-applications.php">
                 Trainer Apps
                 <?php if ($pending_trainer_apps > 0): ?>
                   <span class="lr-dot-pill"><?= (int)$pending_trainer_apps ?></span>
@@ -294,7 +299,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="<?= $BASE_URL ?>/admin/audit-logs.php">Audit Logs</a>
+              <a class="nav-link<?= nav_active('/admin/audit-logs.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/audit-logs.php">Audit Logs</a>
             </li>
             <li class="nav-item">
               <a class="nav-link d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/admin/profile-requests.php">
@@ -306,14 +311,14 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
             </li>
 
             <li class="nav-item">
-              <a class="nav-link" href="<?= $BASE_URL ?>/admin/reviews.php">
+              <a class="nav-link<?= nav_active('/admin/reviews.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/reviews.php">
                 Review Moderation
               </a>
             </li>
 
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/thresholds.php">Thresholds</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/models.php">Models</a></li>
-            <li class="nav-item"><a class="nav-link" href="<?= $BASE_URL ?>/admin/exports.php">Exports</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/admin/thresholds.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/thresholds.php">Thresholds</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/admin/models.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/models.php">Models</a></li>
+            <li class="nav-item"><a class="nav-link<?= nav_active('/admin/exports.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/exports.php">Exports</a></li>
           <?php endif; ?>
 
           <!-- Icons -->
@@ -509,7 +514,7 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                   </a>
                 </li>
                 <li>
-                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= $BASE_URL ?>/admin/profile-requests.php">
+                  <a class="nav-link d-flex align-items-center gap-2<?= nav_active('/admin/profile-requests.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/profile-requests.php">
                     <span><i class="fa-regular fa-pen-to-square me-2"></i>Profile Requests</span>
                     <?php if ($pending_profile_requests > 0): ?>
                       <span class="lr-dot-pill"><?= (int)$pending_profile_requests ?></span>

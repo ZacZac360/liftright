@@ -16,20 +16,20 @@ require __DIR__ . '/../includes/head.php';
 
     <!-- Sticky topbar: Start/Stop always visible (no scroll needed) -->
     <div class="lr-live-topbar">
-      <div class="row g-2 align-items-center">
-        <div class="col-lg-8">
+      <div class="row g-3 align-items-center">
+        <div class="col-lg-7">
           <div class="lr-section-title mb-1">Live Session</div>
           <h1 class="lr-section-heading mb-1">Webcam Posture Assessment</h1>
-          <p class="lr-stat-subtext mb-0">Uses your real model pipeline via a local Python service.</p>
+          <p class="lr-stat-subtext mb-0">Choose an exercise, then start.</p>
         </div>
 
-        <div class="col-lg-4">
-          <div class="d-flex gap-2 justify-content-lg-end lr-btn-group">
-            <button id="btnStart" class="btn btn-primary btn-lg">Start</button>
+        <div class="col-lg-5">
+          <div class="lr-live-topbar-actions">
+            <button id="btnStart" class="btn btn-primary btn-lg lr-btn-strong">Start Session</button>
             <button id="btnStop" class="btn btn-outline-light btn-lg" disabled>Stop</button>
           </div>
           <div class="lr-stat-subtext mt-2 text-lg-end">
-            Tip: Make sure shoulders → hips are visible before starting.
+            Keep shoulders to hips visible.
           </div>
         </div>
       </div>
@@ -59,14 +59,14 @@ require __DIR__ . '/../includes/head.php';
             </div>
 
             <div class="lr-instruction-box">
-              <div class="lr-section-title mb-1">Instruction</div>
-              <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;" id="uiInstruction">
+              <div class="lr-section-title mb-1">Do this now</div>
+              <div class="fw-bold lr-live-main-instruction" id="uiInstruction">
                 Press Start to begin.
               </div>
               <div class="lr-stat-subtext mt-2 mb-0" id="uiInstructionSub">
-                Warm-up assumed. Use a safe load you can control.
+                Use a safe, manageable load.
               </div>
-              <div class="lr-stat-subtext mt-2 mb-0" id="uiDebugLine">
+              <div class="lr-live-debug mt-2" id="uiDebugLine">
                 state: — | phase: — | conf: —
               </div>
             </div>
@@ -77,17 +77,16 @@ require __DIR__ . '/../includes/head.php';
         <div class="lr-card">
           <div class="lr-card-header">
             <div class="lr-section-title mb-1">Feedback</div>
-            <div class="lr-section-heading mb-0">What to do now</div>
+            <div class="lr-section-heading mb-0">Current result</div>
           </div>
           <div class="lr-card-body">
-            <div class="fw-bold" id="uiFeedback" style="font-size: 1.35rem; line-height: 1.2;">—</div>
-            <div class="mt-2" id="uiLastRep" style="font-size: 1.05rem; opacity: .95;">—</div>
+            <div class="fw-bold lr-live-feedback-main" id="uiFeedback">—</div>
+            <div class="mt-2 lr-live-feedback-sub" id="uiLastRep">—</div>
 
             <hr class="my-3">
 
             <div class="lr-stat-subtext">
-              <div><strong>Exercise:</strong> <span id="uiExerciseMain">bicep_curl</span></div>
-              <div><strong>Log:</strong> <span id="uiLogIdMain">—</span></div>
+              <div><strong>Log ID:</strong> <span id="uiLogIdMain">—</span></div>
             </div>
           </div>
         </div>
@@ -129,12 +128,12 @@ require __DIR__ . '/../includes/head.php';
             <!-- Idle overlay stays on camera -->
             <div class="lr-idle-overlay" id="idleOverlay">
               <div class="lr-idle-card">
-                <div class="lr-section-title mb-1">Before you start</div>
-                <div class="fw-bold" style="font-size:1.1rem; line-height:1.2;">
-                  Stand back so your shoulders to hips are visible.
+                <div class="lr-section-title mb-1">Ready check</div>
+                <div class="fw-bold lr-live-idle-title">
+                  Keep shoulders to hips visible.
                 </div>
                 <div class="lr-stat-subtext mt-2 mb-0">
-                  Press <strong>Start</strong> to view a quick setup guide + a 5-second countdown.
+                  Press <strong>Start Session</strong> when ready.
                 </div>
               </div>
             </div>
@@ -148,55 +147,39 @@ require __DIR__ . '/../includes/head.php';
     <!-- RIGHT: STATUS RAIL (UNCHANGED) -->
     <div class="col-12 col-lg-3 order-3 order-lg-3">
       <div class="lr-rail">
-          <div class="lr-card mb-3">
-            <div class="lr-card-header">
-              <div class="lr-section-title mb-1">Session Setup</div>
-              <div class="lr-section-heading mb-0">Choose exercise</div>
-            </div>
-            <div class="lr-card-body">
-              <label class="lr-stat-subtext mb-2" for="exerciseSelect">
-                Select an exercise before pressing <strong>Start</strong>.
-              </label>
+        <div class="lr-card mb-3">
+          <div class="lr-card-header">
+            <div class="lr-section-title mb-1">Session Setup</div>
+            <div class="lr-section-heading mb-0">Exercise</div>
+          </div>
+          <div class="lr-card-body">
+            <label class="lr-stat-subtext mb-2" for="exerciseSelect">
+              Choose what you are about to perform.
+            </label>
 
-              <select id="exerciseSelect" class="form-select form-select-lg">
-                <option value="bicep_curl" selected>Bicep Curl</option>
-                <option value="shoulder_press">Shoulder Press</option>
-                <option value="lateral_raise">Lateral Raise</option>
-              </select>
+            <select id="exerciseSelect" class="form-select form-select-lg">
+              <option value="bicep_curl" selected>Bicep Curl</option>
+              <option value="shoulder_press">Shoulder Press</option>
+              <option value="lateral_raise">Lateral Raise</option>
+            </select>
 
-              <details class="mt-3">
-                <summary class="lr-stat-subtext" style="cursor:pointer;">Quick positioning guide (tap to expand)</summary>
-                <div class="mt-2 lr-stat-subtext">
-                  <ul class="mb-0" style="padding-left: 1.15rem;">
-                    <li>Camera at chest height (laptop/webcam is fine).</li>
-                    <li>Stand 1.5–2.5 meters back (see shoulders → hips).</li>
-                    <li>Face the camera. Keep lighting bright and even.</li>
-                    <li>Minimize background movement for best tracking.</li>
-                  </ul>
-                </div>
-              </details>
+            <div class="lr-stat-subtext mt-3 mb-0">
+              Camera: chest height • Face camera • Good lighting
             </div>
           </div>
-
+        </div>
           <div class="lr-card mb-3">
             <div class="lr-card-header">
               <div class="lr-section-title mb-1">Safety</div>
-              <div class="lr-section-heading mb-0">Read before using</div>
+              <div class="lr-section-heading mb-0">Quick reminders</div>
             </div>
             <div class="lr-card-body">
-              <div class="lr-stat-subtext mb-2">This tool provides posture feedback, but it is <strong>not</strong> medical advice.</div>
-              <details>
-                <summary class="lr-stat-subtext" style="cursor:pointer;">Warnings & assumptions (tap to expand)</summary>
-                <div class="mt-2 lr-stat-subtext">
-                  <ul class="mb-0" style="padding-left: 1.15rem;">
-                    <li><strong>Warm-up assumed:</strong> you already warmed up properly.</li>
-                    <li><strong>Use safe loads:</strong> choose a manageable weight you can control.</li>
-                    <li><strong>Pain = stop:</strong> stop if you feel pain, dizziness, or numbness.</li>
-                    <li><strong>Fatigue flag:</strong> if “STOP recommended” appears, rest or reduce weight.</li>
-                    <li><strong>Environment:</strong> stable footing + enough space around you.</li>
-                  </ul>
-                </div>
-              </details>
+              <ul class="lr-live-quick-list mb-0">
+                <li>Warm up first.</li>
+                <li>Use a weight you can control.</li>
+                <li>Stop if you feel pain or dizziness.</li>
+                <li>Rest if stop is recommended.</li>
+              </ul>
             </div>
           </div>
           <div class="lr-card mb-3">
@@ -206,10 +189,6 @@ require __DIR__ . '/../includes/head.php';
             </div>
 
             <div class="lr-card-body d-grid gap-3">
-              <div>
-                <div class="lr-stat-label">Exercise</div>
-                <div class="fs-5 fw-semibold text-capitalize" id="uiExerciseSide">bicep_curl</div>
-              </div>
 
               <div class="row g-2">
                 <div class="col-6">
@@ -272,7 +251,7 @@ require __DIR__ . '/../includes/head.php';
           </div>
 
           <div class="mt-3 lr-stat-subtext">
-            <strong>Reminder:</strong> stop if you feel pain. Use a safe load you can control.
+            Use a safe load. Stop if something feels wrong.
           </div>
 
           <div class="lr-countdown-wrap">
@@ -287,7 +266,7 @@ require __DIR__ . '/../includes/head.php';
           </div>
 
           <div class="mt-3 lr-stat-subtext" id="guideHintLine">
-            Tip: keep elbows/wrists visible and avoid other people walking behind you.
+            Keep your upper body clear and fully visible.
           </div>
         </div>
       </div>

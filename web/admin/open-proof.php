@@ -57,7 +57,7 @@ $allowed = ['application/pdf', 'image/jpeg', 'image/png'];
 
 if (!in_array($mime, $allowed, true)) {
   http_response_code(415);
-  echo "Unsupported file type.";
+  echo "Unsupported file type. Only PDF, JPG, and PNG proof files can be opened.";
   exit;
 }
 

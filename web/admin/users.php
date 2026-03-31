@@ -5,6 +5,7 @@ session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../includes/db_helpers.php';
+require_once __DIR__ . '/../config/audit.php';
 
 require_role(['admin']);
 
@@ -37,6 +38,7 @@ if (!function_exists('badgeStatusClass')) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action  = (string)($_POST['action'] ?? '');
   $user_id = (int)($_POST['user_id'] ?? 0);
+  $admin_password = (string)($_POST['admin_password'] ?? '');
 
   try {
     if ($user_id <= 0) throw new Exception("Invalid user.");
@@ -67,10 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception("You can't remove your own admin role while logged in.");
       }
 
+      $before = audit_fetch_user_brief($mysqli, $user_id);
+
       $stmt = $mysqli->prepare("UPDATE users SET role=? WHERE user_id=?");
       $stmt->bind_param("si", $new_role, $user_id);
       $stmt->execute();
       $stmt->close();
+
+      $after = audit_fetch_user_brief($mysqli, $user_id);
+
+      audit_admin_action($mysqli, $self_id, 'admin_set_role', $user_id, [
+        'before' => $before,
+        'after' => $after,
+        'new_role' => $new_role
+      ]);
 
       $flash = "Updated user role successfully.";
       $flash_kind = 'success';
@@ -85,10 +97,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception("You can't change your own account status while logged in.");
       }
 
+      $before = audit_fetch_user_brief($mysqli, $user_id);
+
       $stmt = $mysqli->prepare("UPDATE users SET account_status=? WHERE user_id=?");
       $stmt->bind_param("si", $new_status, $user_id);
       $stmt->execute();
       $stmt->close();
+
+      $after = audit_fetch_user_brief($mysqli, $user_id);
+
+      audit_admin_action($mysqli, $self_id, 'admin_set_status', $user_id, [
+        'before' => $before,
+        'after' => $after,
+        'new_status' => $new_status
+      ]);
 
       // Optional: notify the user
       if ($canNotify) {
@@ -227,6 +249,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $mysqli->commit();
 
+        audit_admin_action($mysqli, $self_id, 'admin_unlink_trainer', $user_id, [
+          'trainer_id' => $trainer_id
+        ]);
+
         $flash = "Unlinked trainer successfully.";
         $flash_kind = 'success';
 
@@ -241,10 +267,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception("You can't delete your own account while logged in.");
       }
 
+      require_admin_password_confirm($mysqli, $self_id, $admin_password);
+
+      $before = audit_fetch_user_brief($mysqli, $user_id);
+      if (!$before) {
+        throw new Exception("User not found.");
+      }
+
       $stmt = $mysqli->prepare("DELETE FROM users WHERE user_id=?");
       $stmt->bind_param("i", $user_id);
       $stmt->execute();
       $stmt->close();
+
+      audit_admin_action($mysqli, $self_id, 'admin_delete_user', $user_id, [
+        'deleted_user' => $before
+      ]);
 
       $flash = "Deleted user successfully.";
       $flash_kind = 'success';
@@ -557,15 +594,21 @@ require __DIR__ . '/../includes/head.php';
                     <?php endif; ?>
 
                     <!-- Delete -->
-                    <form method="POST" class="d-inline ms-2"
-                          onsubmit="return confirm('Delete this user? This may cascade delete related rows via FK rules.');">
+                    <form method="POST" class="d-inline-flex gap-2 align-items-center ms-2"
+                          onsubmit="return confirm('Delete this user? Entered admin password will be used for confirmation. This may cascade delete related rows via FK rules.');">
                       <input type="hidden" name="user_id" value="<?= $uid ?>">
                       <input type="hidden" name="action" value="delete_user">
+                      <input type="password"
+                            name="admin_password"
+                            class="form-control form-control-sm"
+                            placeholder="Admin password"
+                            style="width: 160px;"
+                            <?= $isSelf ? 'disabled' : '' ?>
+                            required>
                       <button class="btn btn-sm btn-outline-danger" type="submit" <?= $isSelf ? 'disabled' : '' ?> title="Delete user">
                         <i class="fa-solid fa-trash"></i>
                       </button>
                     </form>
-
                   </td>
                 </tr>
               <?php endforeach; ?>
