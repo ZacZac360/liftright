@@ -8,6 +8,7 @@
   ========================= */
   const btnStart = document.getElementById("btnStart");
   const btnStop  = document.getElementById("btnStop");
+  const cameraCard = document.getElementById("cameraCard");
   const exerciseSelect = document.getElementById("exerciseSelect");
 
   const video = document.getElementById("video");
@@ -68,7 +69,7 @@
   // Gate mode state (setup)
   let gateTimer = null;
   let gateOkStreak = 0;
-  let gateMemory = { minY: 1.0, minX: 1.0, maxX: 0.0 };
+  let gateLaunching = false;
 
   // Overlay image from python
   const annotatedImg = new Image();
@@ -196,8 +197,20 @@ const DANGER_COOLDOWN_MS = 1200;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...payload }),
     });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.message || "API error");
+
+    const raw = await res.text();
+
+    let data = null;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      throw new Error(`HTTP ${res.status}: ${raw}`);
+    }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
     return data;
   }
 
@@ -250,6 +263,26 @@ const DANGER_COOLDOWN_MS = 1200;
       );
     });
   }
+  
+  function scrollToCamera() {
+    if (!cameraCard) return;
+    cameraCard.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  function captureFullResScreenshot() {
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+
+    const tctx = tempCanvas.getContext("2d");
+    tctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    return tempCanvas.toDataURL("image/jpeg", 0.88);
+  }
+
 
   function normalizeState(raw) {
     const s = String(raw ?? "").toLowerCase().trim();
@@ -572,6 +605,20 @@ const DANGER_COOLDOWN_MS = 1200;
       if (repJustIncremented) {
         const now = Date.now();
 
+        // Save exactly 1 screenshot for this rep
+        try {
+          const screenshotDataUrl = captureFullResScreenshot();
+
+          await api("rep_screenshot", {
+            log_id: logId,
+            session_token: sessionToken,
+            rep_index: repNum,
+            image_dataurl: screenshotDataUrl,
+          });
+        } catch (e) {
+          console.warn("rep_screenshot failed:", e.message);
+        }
+
         if (lastRepTextUpper.includes("UNSAFE")) {
           if ((now - lastDangerSfxAt) >= DANGER_COOLDOWN_MS) {
             sfx("danger");
@@ -604,8 +651,8 @@ const DANGER_COOLDOWN_MS = 1200;
       uiConfSide.textContent = (typeof conf === "number" ? conf.toFixed(2) : String(conf));
 
       const ex = (status.exercise ?? exerciseSelect.value);
-      uiExerciseMain.textContent = ex;
-      uiExerciseSide.textContent = ex;
+      if (uiExerciseMain) uiExerciseMain.textContent = ex;
+      if (uiExerciseSide) uiExerciseSide.textContent = ex;
 
       uiFeedback.textContent = String(state).toLowerCase() === "stop"
         ? "STOP RECOMMENDED (fatigue)"
@@ -657,22 +704,44 @@ const DANGER_COOLDOWN_MS = 1200;
 
   async function startSessionInternal() {
     const ex = exerciseSelect.value;
-    const res = await api("start", { exercise_type: ex });
+
+    let res;
+    try {
+      res = await api("start", { exercise_type: ex });
+    } catch (e) {
+      throw new Error(`Start API failed: ${e.message}`);
+    }
+
     logId = res.log_id;
     sessionToken = res.session_token;
 
-    uiLogIdMain.textContent = String(logId);
-    uiLogIdSide.textContent = String(logId);
-    uiExerciseMain.textContent = ex;
-    uiExerciseSide.textContent = ex;
+    if (!logId || !sessionToken) {
+      throw new Error("Start API returned missing log_id or session_token.");
+    }
+
+    if (uiLogIdMain) uiLogIdMain.textContent = String(logId);
+    if (uiLogIdSide) uiLogIdSide.textContent = String(logId);
+
+    if (uiExerciseMain) uiExerciseMain.textContent = ex;
+    if (uiExerciseSide) uiExerciseSide.textContent = ex;
 
     if (idleOverlay) idleOverlay.style.display = "none";
-    await startCamera();
+
+    try {
+      await startCamera();
+    } catch (e) {
+      throw new Error(`Camera start failed: ${e.message}`);
+    }
+
+    scrollToCamera();
 
     running = true;
     btnStart.disabled = true;
     btnStop.disabled = false;
     exerciseSelect.disabled = true;
+
+    prevRepNum = 0;
+    prevStateLower = "";
 
     lastKnownPhase = "raise";
     stickyPhrase = "";
@@ -717,8 +786,10 @@ const DANGER_COOLDOWN_MS = 1200;
     } finally {
       sessionToken = "";
       logId = 0;
-      uiLogIdMain.textContent = "—";
-      uiLogIdSide.textContent = "—";
+      prevRepNum = 0;
+      prevStateLower = "";
+      if (uiLogIdMain) uiLogIdMain.textContent = "—";
+      if (uiLogIdSide) uiLogIdSide.textContent = "—";
       if (idleOverlay) idleOverlay.style.display = "flex";
     }
   }
@@ -808,7 +879,7 @@ const DANGER_COOLDOWN_MS = 1200;
 
   function resetGate() {
     gateOkStreak = 0;
-    gateMemory = { minY: 1.0, minX: 1.0, maxX: 0.0 };
+    gateLaunching = false;
   }
 
   function stopGateLoop() {
@@ -816,17 +887,6 @@ const DANGER_COOLDOWN_MS = 1200;
     clearInterval(gateTimer);
     gateTimer = null;
   }
-
-  function updateGateMemory(gate) {
-    const w = gate?.wrist;
-    if (!w) return;
-    if (typeof w.min_y === "number") gateMemory.minY = Math.min(gateMemory.minY, w.min_y);
-    if (typeof w.min_x === "number") gateMemory.minX = Math.min(gateMemory.minX, w.min_x);
-    if (typeof w.max_x === "number") gateMemory.maxX = Math.max(gateMemory.maxX, w.max_x);
-  }
-
-  function gateHandsUpOk() { return gateMemory.minY <= 0.12; }
-  function gateHandsSideOk() { return gateMemory.minX <= 0.10 && gateMemory.maxX >= 0.90; }
 
   async function gateTick() {
     if (!video.videoWidth || !video.videoHeight) return;
@@ -853,57 +913,51 @@ const DANGER_COOLDOWN_MS = 1200;
       drawSafeZone(`rgba(255,70,70,${pulseAlpha(0.5,0.25)})`);
       drawTint("rgba(120,0,0,1)", VIS.tint.badFrameAlpha);
       uiInstruction.textContent = "Step into view and face the camera.";
-      uiInstructionSub.textContent = "Better lighting helps. Avoid backlight.";
+      uiInstructionSub.textContent = "Good lighting helps. Keep your upper body visible.";
       return;
     }
 
-    updateGateMemory(g);
-
     const frameOk = !!g.frame_ok;
-    const handsUp = gateHandsUpOk();
-    const handsSide = gateHandsSideOk();
 
     if (!frameOk) {
       gateOkStreak = 0;
       drawSafeZone(`rgba(255,70,70,${pulseAlpha(0.5,0.25)})`);
       drawTint("rgba(120,0,0,1)", VIS.tint.badFrameAlpha);
-
-      uiInstruction.textContent = "Step back (create distance).";
-      uiInstructionSub.textContent = "Keep shoulders → hips visible. Face camera.";
+      uiInstruction.textContent = "Step back until shoulders to hips are visible.";
+      uiInstructionSub.textContent = "Face the camera and keep your body centered.";
       return;
     }
 
     drawSafeZone("rgba(0,255,0,1)");
 
-    if (!handsUp || !handsSide) {
-      gateOkStreak = 0;
-
-      const w = overlayCanvas.width;
-      const h = overlayCanvas.height;
-
-      if (!handsUp) {
-        drawArrow(w * 0.5, h * 0.60, w * 0.5, h * 0.30, "rgba(255,255,255,1)");
-      }
-      if (!handsSide) {
-        const y = h * 0.45;
-        drawArrow(w * 0.40, y, w * 0.15, y, "rgba(255,255,255,1)");
-        drawArrow(w * 0.60, y, w * 0.85, y, "rgba(255,255,255,1)");
-      }
-
-      uiInstruction.textContent = !handsUp && !handsSide
-        ? "Raise hands UP, then stretch arms to the SIDES."
-        : (!handsUp ? "Raise both hands UP." : "Stretch arms to the SIDES.");
-      uiInstructionSub.textContent = "We’re confirming you won’t get cropped mid-movement.";
-      return;
-    }
-
     gateOkStreak += 1;
-    uiInstruction.textContent = `Perfect — hold... (${gateOkStreak}/8)`;
-    uiInstructionSub.textContent = "Starting in 3 seconds.";
+    uiInstruction.textContent = `Good framing — hold still (${gateOkStreak}/5)`;
+    uiInstructionSub.textContent = "Starting soon...";
 
-    if (gateOkStreak >= 8) {
+    if (gateOkStreak >= 5 && !gateLaunching) {
+      gateLaunching = true;
       stopGateLoop();
-      await start3sCountdownThenStart();
+
+      uiInstruction.textContent = "Starting session...";
+      uiInstructionSub.textContent = "Please wait.";
+
+      try {
+        await start3sCountdownThenStart();
+      } catch (e) {
+        gateLaunching = false;
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        exerciseSelect.disabled = false;
+
+        uiPhasePill.textContent = "Phase: Idle";
+        uiInstruction.textContent = "Start failed.";
+        uiInstructionSub.textContent = e?.message || "Could not start the live session.";
+
+        if (idleOverlay) idleOverlay.style.display = "flex";
+        ovCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        console.error("start3sCountdownThenStart failed:", e);
+      }
     }
   }
 
@@ -952,6 +1006,7 @@ const DANGER_COOLDOWN_MS = 1200;
 
     await startCamera();
     syncCanvasToVideo();
+    scrollToCamera();
 
     await startGateLoop();
   }
@@ -1027,8 +1082,8 @@ const DANGER_COOLDOWN_MS = 1200;
   uiConf.textContent = "Conf: —";
   uiFeedback.textContent = "—";
   uiLastRep.textContent = "—";
-  uiLogIdMain.textContent = "—";
-  uiLogIdSide.textContent = "—";
+  if (uiLogIdMain) uiLogIdMain.textContent = "—";
+  if (uiLogIdSide) uiLogIdSide.textContent = "—";
 
   uiRepsSide.textContent = "—";
   uiStateSide.textContent = "—";

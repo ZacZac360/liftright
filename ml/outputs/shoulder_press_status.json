@@ -1,7 +1,7 @@
 {
-  "state": "finished",
+  "state": "running",
   "exercise": "shoulder_press",
-  "message": "Session finished",
-  "reps_total": 8,
-  "timestamp": 1772187056.5775378
+  "message": "Session started",
+  "log_id": 169,
+  "timestamp": 1775023294.0087545
 }

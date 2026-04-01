@@ -72,10 +72,21 @@ $stmt->close();
 // Rep metrics
 $reps = [];
 $stmt = $mysqli->prepare("
-  SELECT rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score
-  FROM rep_metrics
-  WHERE log_id = ?
-  ORDER BY rep_index ASC
+  SELECT
+    rm.rep_index,
+    rm.duration_ms,
+    rm.rom_score,
+    rm.trunk_sway,
+    rm.confidence_avg,
+    rm.form_label,
+    rm.anomaly_score,
+    rs.image_path AS snapshot_path
+  FROM rep_metrics rm
+  LEFT JOIN rep_snapshots rs
+    ON rs.log_id = rm.log_id
+   AND rs.rep_index = rm.rep_index
+  WHERE rm.log_id = ?
+  ORDER BY rm.rep_index ASC
 ");
 $stmt->bind_param("i", $log_id);
 $stmt->execute();
@@ -251,24 +262,37 @@ require __DIR__ . '/../includes/head.php';
               <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Duration</th>
-                    <th>ROM</th>
-                    <th>Trunk sway</th>
-                    <th>Confidence</th>
-                    <th>Label</th>
-                    <th class="text-end">Anomaly</th>
-                  </tr>
+                  <th>#</th>
+                  <th>Snapshot</th>
+                  <th>Duration</th>
+                  <th>ROM</th>
+                  <th>Trunk sway</th>
+                  <th>Confidence</th>
+                  <th>Label</th>
+                  <th class="text-end">Anomaly</th>
+                </tr>
                 </thead>
                 <tbody>
                 <?php if (count($reps) === 0): ?>
                   <tr>
-                    <td colspan="7" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
+                    <td colspan="8" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
                   </tr>
                 <?php else: ?>
                   <?php foreach ($reps as $r): ?>
                     <tr>
                       <td><?= (int)$r['rep_index'] ?></td>
+                      <td>
+                        <?php if (!empty($r['snapshot_path'])): ?>
+                          <a href="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>" target="_blank">
+                            <img
+                              src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
+                              alt="Rep <?= (int)$r['rep_index'] ?> snapshot"
+                              style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--lr-border);">
+                          </a>
+                        <?php else: ?>
+                          —
+                        <?php endif; ?>
+                      </td>
                       <td><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'].' ms' ?></td>
                       <td><?= $r['rom_score'] === null ? '—' : number_format((float)$r['rom_score'], 2) ?></td>
                       <td><?= $r['trunk_sway'] === null ? '—' : number_format((float)$r['trunk_sway'], 2) ?></td>

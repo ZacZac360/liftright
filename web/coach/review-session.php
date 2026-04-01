@@ -87,10 +87,23 @@ if (empty($session['trainee_email'])) $session['trainee_email'] = '—';
  */
 $reps = [];
 $stmt = $mysqli->prepare("
-  SELECT rep_id, rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score, created_at
-  FROM rep_metrics
-  WHERE log_id = ?
-  ORDER BY rep_index ASC
+  SELECT
+    rm.rep_id,
+    rm.rep_index,
+    rm.duration_ms,
+    rm.rom_score,
+    rm.trunk_sway,
+    rm.confidence_avg,
+    rm.form_label,
+    rm.anomaly_score,
+    rm.created_at,
+    rs.image_path AS snapshot_path
+  FROM rep_metrics rm
+  LEFT JOIN rep_snapshots rs
+    ON rs.log_id = rm.log_id
+   AND rs.rep_index = rm.rep_index
+  WHERE rm.log_id = ?
+  ORDER BY rm.rep_index ASC
 ");
 $stmt->bind_param("i", $log_id);
 $stmt->execute();
@@ -296,6 +309,7 @@ require __DIR__ . '/../includes/head.php';
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Snapshot</th>
                     <th>Label</th>
                     <th class="text-end">Duration</th>
                     <th class="text-end">ROM</th>
@@ -306,18 +320,30 @@ require __DIR__ . '/../includes/head.php';
                 </thead>
                 <tbody>
                   <?php if (!$reps): ?>
-                    <tr><td colspan="7" class="text-center py-4 lr-stat-subtext">No rep metrics recorded.</td></tr>
+                    <tr><td colspan="8" class="text-center py-4 lr-stat-subtext">No rep metrics recorded.</td></tr>
                   <?php else: ?>
                     <?php foreach ($reps as $r): ?>
-                      <tr>
-                        <td><?= (int)$r['rep_index'] ?></td>
-                        <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
-                        <td class="text-end"><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'] . ' ms' ?></td>
-                        <td class="text-end"><?= $r['rom_score'] === null ? '—' : h(number_format((float)$r['rom_score'], 2)) ?></td>
-                        <td class="text-end"><?= $r['trunk_sway'] === null ? '—' : h(number_format((float)$r['trunk_sway'], 3)) ?></td>
-                        <td class="text-end"><?= $r['confidence_avg'] === null ? '—' : h(number_format((float)$r['confidence_avg'], 2)) ?></td>
-                        <td class="text-end"><?= $r['anomaly_score'] === null ? '—' : h(number_format((float)$r['anomaly_score'], 3)) ?></td>
-                      </tr>
+                  <tr>
+                    <td><?= (int)$r['rep_index'] ?></td>
+                    <td>
+                      <?php if (!empty($r['snapshot_path'])): ?>
+                        <a href="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>" target="_blank">
+                          <img
+                            src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
+                            alt="Rep <?= (int)$r['rep_index'] ?> snapshot"
+                            style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--lr-border);">
+                        </a>
+                      <?php else: ?>
+                        —
+                      <?php endif; ?>
+                    </td>
+                    <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
+                    <td class="text-end"><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'] . ' ms' ?></td>
+                    <td class="text-end"><?= $r['rom_score'] === null ? '—' : h(number_format((float)$r['rom_score'], 2)) ?></td>
+                    <td class="text-end"><?= $r['trunk_sway'] === null ? '—' : h(number_format((float)$r['trunk_sway'], 3)) ?></td>
+                    <td class="text-end"><?= $r['confidence_avg'] === null ? '—' : h(number_format((float)$r['confidence_avg'], 2)) ?></td>
+                    <td class="text-end"><?= $r['anomaly_score'] === null ? '—' : h(number_format((float)$r['anomaly_score'], 3)) ?></td>
+                  </tr>
                     <?php endforeach; ?>
                   <?php endif; ?>
                 </tbody>

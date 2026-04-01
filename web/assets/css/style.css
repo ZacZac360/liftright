@@ -828,13 +828,13 @@ html[data-theme="light"] .lr-live-topbar{
 }
 .lr-camera-stage{
   width: 100%;
-  height: clamp(360px, 62vh, 760px);
+  height: clamp(300px, 54vh, 640px);
 }
 @media (max-height: 740px){
-  .lr-camera-stage{ height: clamp(320px, 56vh, 680px); }
+  .lr-camera-stage{ height: clamp(280px, 50vh, 560px); }
 }
 @media (min-width: 1200px){
-  .lr-camera-stage{ height: clamp(420px, 68vh, 840px); }
+  .lr-camera-stage{ height: clamp(340px, 58vh, 700px); }
 }
 @media (max-width: 991.98px){
   .lr-live-topbar{ border-radius: 1rem; padding: 12px; }

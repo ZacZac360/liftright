@@ -1,6 +1,12 @@
 <?php
 // liftright/web/api/session_process.php
 session_start();
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/auth.php';
 
@@ -39,6 +45,38 @@ function http_post_json(string $url, array $payload): array {
   if ($raw === false) return ['ok' => false, 'error' => $err ?: 'curl failed', 'http' => $code];
   $data = json_decode($raw, true);
   return ['ok' => ($code >= 200 && $code < 300), 'http' => $code, 'data' => $data, 'raw' => $raw];
+}
+
+function save_dataurl_image(string $dataurl, string $absDir, string $baseName): ?array {
+  if (!preg_match('#^data:image/(jpeg|jpg|png);base64,#i', $dataurl, $m)) {
+    return null;
+  }
+
+  $ext = strtolower($m[1]);
+  if ($ext === 'jpeg') $ext = 'jpg';
+
+  $commaPos = strpos($dataurl, ',');
+  if ($commaPos === false) return null;
+
+  $bin = base64_decode(substr($dataurl, $commaPos + 1), true);
+  if ($bin === false) return null;
+
+  if (!is_dir($absDir) && !mkdir($absDir, 0775, true) && !is_dir($absDir)) {
+    return null;
+  }
+
+  $fileName = $baseName . '.' . $ext;
+  $absPath = rtrim($absDir, '/\\') . DIRECTORY_SEPARATOR . $fileName;
+
+  if (file_put_contents($absPath, $bin) === false) {
+    return null;
+  }
+
+  return [
+    'ext' => $ext,
+    'file_name' => $fileName,
+    'abs_path' => $absPath
+  ];
 }
 
 $exercise = (string)($input['exercise_type'] ?? '');
@@ -114,6 +152,62 @@ if ($action === 'gate') {
   }
 
   echo json_encode(['success' => true] + $resp['data']);
+  exit;
+}
+
+if ($action === 'rep_screenshot') {
+  $log_id = (int)($input['log_id'] ?? 0);
+  $rep_index = (int)($input['rep_index'] ?? 0);
+  $token = (string)($input['session_token'] ?? '');
+  $image_dataurl = (string)($input['image_dataurl'] ?? '');
+
+  if ($log_id <= 0 || $rep_index <= 0 || $token === '' || $image_dataurl === '') {
+    json_fail("Missing screenshot payload.");
+  }
+
+  // Verify the session log belongs to the current user
+  $stmt = $mysqli->prepare("
+    SELECT log_id
+    FROM training_logs
+    WHERE log_id = ? AND user_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("ii", $log_id, $user_id);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+
+  if (!$row) {
+    json_fail("Invalid log_id.", 403);
+  }
+
+  $relativeDir = "uploads/rep_snapshots/log_" . $log_id;
+  $absoluteDir = __DIR__ . "/../" . $relativeDir;
+
+  $saved = save_dataurl_image($image_dataurl, $absoluteDir, "rep_" . $rep_index);
+  if (!$saved) {
+    json_fail("Failed to save screenshot.", 500);
+  }
+
+  $relativePath = $relativeDir . "/" . $saved['file_name'];
+
+  $stmt = $mysqli->prepare("
+    INSERT INTO rep_snapshots (log_id, rep_index, image_path, captured_at)
+    VALUES (?, ?, ?, NOW())
+    ON DUPLICATE KEY UPDATE
+      image_path = VALUES(image_path),
+      captured_at = NOW()
+  ");
+  $stmt->bind_param("iis", $log_id, $rep_index, $relativePath);
+  $stmt->execute();
+  $stmt->close();
+
+  echo json_encode([
+    'success' => true,
+    'log_id' => $log_id,
+    'rep_index' => $rep_index,
+    'image_path' => $relativePath
+  ]);
   exit;
 }
 

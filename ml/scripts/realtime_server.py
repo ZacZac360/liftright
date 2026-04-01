@@ -1933,8 +1933,9 @@ def gate_eval(frame_bgr):
     elbows_ok    = _lm_ok(lm, LEL) and _lm_ok(lm, REL)
     wrists_ok    = _lm_ok(lm, LWR) and _lm_ok(lm, RWR)
 
-    # Basic “upper body in frame” check
-    frame_ok = shoulders_ok and hips_ok and elbows_ok and wrists_ok
+    # Simple framing check:
+    # only require the main upper-body region needed for exercise tracking
+    frame_ok = shoulders_ok and hips_ok
 
     # Provide wrist coords to allow client to confirm "hands up" + "hands to side" over time
     lw = lm[LWR]; rw = lm[RWR]
