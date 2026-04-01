@@ -250,6 +250,14 @@ function build_query(array $overrides = []): string {
   return http_build_query($q);
 }
 
+$hasAdvancedFilters =
+  $fatigue !== '' ||
+  $source !== '' ||
+  $q !== '' ||
+  $min_form !== '' ||
+  $min_reps !== '' ||
+  $per_page !== 5;
+
 require __DIR__ . '/../includes/head.php';
 ?>
 <body>
@@ -258,112 +266,125 @@ require __DIR__ . '/../includes/head.php';
 <div class="lr-page-wrapper">
   <div class="container lr-main-container py-4">
 
-    <!-- Header -->
+        <!-- Header -->
     <div class="row mb-4 align-items-center">
-      <div class="col-md-8">
+      <div class="col-lg-8">
         <div class="lr-section-title mb-1">History</div>
         <h1 class="lr-section-heading mb-1">My Sessions</h1>
-        <p class="lr-stat-subtext mb-0">Browse your recorded sessions and open a detailed rep breakdown.</p>
+        <p class="lr-stat-subtext mb-0">Review past workout sessions and open a detailed breakdown for each one.</p>
       </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a class="btn btn-primary px-3" href="<?= $BASE_URL ?>/trainee/start-session.php">
+      <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+        <a class="btn btn-primary btn-lg px-4" href="<?= $BASE_URL ?>/trainee/start-session.php">
           Start New Session
         </a>
       </div>
     </div>
 
-    <!-- Filters (same look, just more options) -->
+    <!-- Filters -->
     <div class="lr-card mb-4">
-      <div class="lr-card-body">
-        <form class="row g-2 align-items-end" method="get">
+      <div class="lr-card-header">
+        <div class="lr-section-title mb-1">Filters</div>
+        <div class="lr-section-heading mb-0">Find a session faster</div>
+      </div>
 
+      <div class="lr-card-body">
+        <form class="row g-3 align-items-end" method="get">
+
+          <!-- Primary filters -->
           <div class="col-md-3">
             <label class="form-label lr-stat-label">Exercise</label>
             <select class="form-select" name="exercise">
-              <option value="">All</option>
+              <option value="">All exercises</option>
               <option value="bicep_curl" <?= $exercise==='bicep_curl'?'selected':'' ?>>Bicep Curl</option>
               <option value="shoulder_press" <?= $exercise==='shoulder_press'?'selected':'' ?>>Shoulder Press</option>
               <option value="lateral_raise" <?= $exercise==='lateral_raise'?'selected':'' ?>>Lateral Raise</option>
             </select>
           </div>
 
-          <div class="col-md-2">
-            <label class="form-label lr-stat-label">Fatigue flag</label>
-            <select class="form-select" name="fatigue">
-              <option value="">All</option>
-              <option value="0" <?= $fatigue==='0'?'selected':'' ?>>Normal</option>
-              <option value="1" <?= $fatigue==='1'?'selected':'' ?>>Warning</option>
-            </select>
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label lr-stat-label">Source</label>
-            <select class="form-select" name="source">
-              <option value="">All</option>
-              <option value="upload" <?= $source==='upload'?'selected':'' ?>>Upload</option>
-              <option value="webcam" <?= $source==='webcam'?'selected':'' ?>>Webcam</option>
-            </select>
-          </div>
-
-          <div class="col-md-2">
+          <div class="col-md-3">
             <label class="form-label lr-stat-label">Date from</label>
             <input type="date" class="form-control" name="date_from" value="<?= h($date_from) ?>">
           </div>
 
-          <div class="col-md-2">
+          <div class="col-md-3">
             <label class="form-label lr-stat-label">Date to</label>
             <input type="date" class="form-control" name="date_to" value="<?= h($date_to) ?>">
           </div>
 
           <div class="col-md-3">
-            <label class="form-label lr-stat-label">Search</label>
-            <input class="form-control" name="q" placeholder="exercise / source..." value="<?= h($q) ?>">
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label lr-stat-label">Min form %</label>
-            <input class="form-control" name="min_form" inputmode="numeric" placeholder="e.g. 80" value="<?= h($min_form) ?>">
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label lr-stat-label">Min reps</label>
-            <input class="form-control" name="min_reps" inputmode="numeric" placeholder="e.g. 10" value="<?= h($min_reps) ?>">
-          </div>
-
-          <div class="col-md-2">
             <label class="form-label lr-stat-label">Sort</label>
             <select class="form-select" name="sort">
-              <option value="newest" <?= $sort==='newest'?'selected':'' ?>>Newest</option>
-              <option value="oldest" <?= $sort==='oldest'?'selected':'' ?>>Oldest</option>
-              <option value="form_desc" <?= $sort==='form_desc'?'selected':'' ?>>Form (high → low)</option>
-              <option value="form_asc" <?= $sort==='form_asc'?'selected':'' ?>>Form (low → high)</option>
-              <option value="reps_desc" <?= $sort==='reps_desc'?'selected':'' ?>>Reps (high → low)</option>
-              <option value="reps_asc" <?= $sort==='reps_asc'?'selected':'' ?>>Reps (low → high)</option>
-              <option value="lat_desc" <?= $sort==='lat_desc'?'selected':'' ?>>Latency (high → low)</option>
-              <option value="lat_asc" <?= $sort==='lat_asc'?'selected':'' ?>>Latency (low → high)</option>
+              <option value="newest" <?= $sort==='newest'?'selected':'' ?>>Newest first</option>
+              <option value="oldest" <?= $sort==='oldest'?'selected':'' ?>>Oldest first</option>
+              <option value="form_desc" <?= $sort==='form_desc'?'selected':'' ?>>Best form first</option>
+              <option value="form_asc" <?= $sort==='form_asc'?'selected':'' ?>>Lowest form first</option>
+              <option value="reps_desc" <?= $sort==='reps_desc'?'selected':'' ?>>Most reps first</option>
+              <option value="reps_asc" <?= $sort==='reps_asc'?'selected':'' ?>>Fewest reps first</option>
+              <option value="lat_desc" <?= $sort==='lat_desc'?'selected':'' ?>>Highest latency first</option>
+              <option value="lat_asc" <?= $sort==='lat_asc'?'selected':'' ?>>Lowest latency first</option>
             </select>
           </div>
 
-          <div class="col-md-2">
-            <label class="form-label lr-stat-label">Per page</label>
-            <select class="form-select" name="per_page">
-              <?php foreach ([5, 10,25,50,100] as $pp): ?>
-                <option value="<?= $pp ?>" <?= $per_page===$pp?'selected':'' ?>><?= $pp ?></option>
-              <?php endforeach; ?>
-            </select>
+          <!-- Advanced filters -->
+          <div class="col-12">
+            <details class="lr-advanced-filters" <?= $hasAdvancedFilters ? 'open' : '' ?>>
+              <summary class="lr-advanced-summary">Advanced filters</summary>
+
+              <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                  <label class="form-label lr-stat-label">Fatigue flag</label>
+                  <select class="form-select" name="fatigue">
+                    <option value="">All</option>
+                    <option value="0" <?= $fatigue==='0'?'selected':'' ?>>Normal</option>
+                    <option value="1" <?= $fatigue==='1'?'selected':'' ?>>Warning</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label lr-stat-label">Source</label>
+                  <select class="form-select" name="source">
+                    <option value="">All</option>
+                    <option value="upload" <?= $source==='upload'?'selected':'' ?>>Upload</option>
+                    <option value="webcam" <?= $source==='webcam'?'selected':'' ?>>Webcam</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label lr-stat-label">Minimum form %</label>
+                  <input class="form-control" name="min_form" inputmode="numeric" placeholder="e.g. 80" value="<?= h($min_form) ?>">
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label lr-stat-label">Minimum reps</label>
+                  <input class="form-control" name="min_reps" inputmode="numeric" placeholder="e.g. 10" value="<?= h($min_reps) ?>">
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label lr-stat-label">Search</label>
+                  <input class="form-control" name="q" placeholder="Search by exercise or source" value="<?= h($q) ?>">
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label lr-stat-label">Per page</label>
+                  <select class="form-select" name="per_page">
+                    <?php foreach ([5, 10, 25, 50, 100] as $pp): ?>
+                      <option value="<?= $pp ?>" <?= $per_page===$pp?'selected':'' ?>><?= $pp ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </details>
           </div>
 
-          <div class="col-md-2 d-grid">
-            <button class="btn btn-outline-light">Apply</button>
+          <div class="col-md-3 d-grid">
+            <button class="btn btn-primary">Apply Filters</button>
           </div>
 
           <div class="col-md-2 d-grid">
             <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/trainee/sessions.php">Reset</a>
           </div>
 
-          <!-- keep page when applying filters? no: always reset to page 1 on Apply -->
           <input type="hidden" name="page" value="1">
-
         </form>
       </div>
     </div>
@@ -501,4 +522,32 @@ require __DIR__ . '/../includes/head.php';
   </div>
 </div>
 
+<style>
+.lr-advanced-filters{
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  background: rgba(15,23,42,0.28);
+}
+.lr-advanced-summary{
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: var(--lr-text);
+  margin: 0;
+}
+.lr-advanced-summary::-webkit-details-marker{
+  display: none;
+}
+.lr-advanced-summary::after{
+  content: " +";
+  color: var(--lr-text-muted);
+  font-weight: 700;
+}
+.lr-advanced-filters[open] .lr-advanced-summary::after{
+  content: " −";
+}
+</style>
+
 <?php require __DIR__ . '/../includes/footer.php'; ?>
+

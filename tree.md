@@ -1,5 +1,7 @@
 C:.
 │  .gitignore
+│  liftright_db.sql
+│  Pasted markdown.md
 │  Thesis Proper.pdf
 │  tree.md
 │
@@ -38,7 +40,6 @@ C:.
 │  │  │  04_live_bicep_curl.py
 │  │  │  04_live_lateral_raise.py
 │  │  │  04_live_shoulder_press.py
-│  │  │  realtime_server copy.py
 │  │  │  realtime_server.py
 │  │  │
 │  │  ├─server
@@ -125,6 +126,7 @@ C:.
     │  cancel-profile-request.php
     │  compose-message.php
     │  dir dump.txt
+    │  forgot-password.php
     │  hash.php
     │  index.php
     │  layout.txt
@@ -134,6 +136,7 @@ C:.
     │  message-view.php
     │  messages.php
     │  notifications.php
+    │  reset-password.php
     │  sql.txt
     │  tree_structure.txt
     │  verify-email.php
@@ -153,8 +156,8 @@ C:.
     │
     ├─api
     │      dashboard_trend.php
+    │      forgot-password.php
     │      resend-email-otp.php
-    │      session_process copy.php
     │      session_process.php
     │      set-theme.php
     │      verify-email-otp.php
@@ -172,6 +175,7 @@ C:.
     │  │
     │  └─sfx
     │          coach.mp3
+    │          danger.mp3
     │          rep.mp3
     │          start.mp3
     │          stop.mp3
@@ -205,7 +209,6 @@ C:.
     │      profile.php
     │      session-view.php
     │      sessions.php
-    │      start-session - Copy.php
     │      start-session.php
     │      sus.php
     │      trainer-info.php
@@ -219,6 +222,48 @@ C:.
         │      user_3.png
         │      user_9.jpg
         │
+        ├─rep_snapshots
+        │  ├─log_170
+        │  │      rep_1.jpg
+        │  │      rep_2.jpg
+        │  │      rep_3.jpg
+        │  │
+        │  ├─log_172
+        │  │      rep_1.jpg
+        │  │      rep_2.jpg
+        │  │      rep_3.jpg
+        │  │      rep_4.jpg
+        │  │      rep_5.jpg
+        │  │      rep_6.jpg
+        │  │
+        │  ├─log_173
+        │  │      rep_1.jpg
+        │  │      rep_10.jpg
+        │  │      rep_2.jpg
+        │  │      rep_3.jpg
+        │  │      rep_4.jpg
+        │  │      rep_5.jpg
+        │  │      rep_6.jpg
+        │  │      rep_7.jpg
+        │  │      rep_8.jpg
+        │  │      rep_9.jpg
+        │  │
+        │  └─log_174
+        │          rep_1.jpg
+        │          rep_10.jpg
+        │          rep_11.jpg
+        │          rep_2.jpg
+        │          rep_3.jpg
+        │          rep_4.jpg
+        │          rep_5.jpg
+        │          rep_6.jpg
+        │          rep_7.jpg
+        │          rep_8.jpg
+        │          rep_9.jpg
+        │
         └─trainer_proofs
                 .htaccess
                 trainerproof_e3b807d38493dc67.png
+
+
+C:\xampp\htdocs\liftright>

@@ -140,6 +140,30 @@ $good = (int)$session['reps_good'];
 $total = (int)$session['reps_total'];
 $pct = formPct($good, $total);
 
+/* ---------------------------
+   Key issues / highlights
+----------------------------*/
+$key_dangers = [];
+$key_warnings = [];
+
+foreach ($feedback as $f) {
+  $text = trim((string)($f['feedback_text'] ?? ''));
+  $sev  = (string)($f['severity'] ?? 'info');
+
+  if ($text === '') continue;
+
+  if ($sev === 'danger') {
+    $key_dangers[] = $text;
+  } elseif ($sev === 'warning') {
+    $key_warnings[] = $text;
+  }
+}
+
+$key_dangers = array_values(array_unique($key_dangers));
+$key_warnings = array_values(array_unique($key_warnings));
+
+$top_issues = array_slice(array_merge($key_dangers, $key_warnings), 0, 5);
+
 require __DIR__ . '/../includes/head.php';
 ?>
 <body>
@@ -168,8 +192,8 @@ require __DIR__ . '/../includes/head.php';
     </div>
 
     <!-- Summary cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-3">
+    <div class="row g-3 mb-4 lr-summary-row">
+      <div class="col-md-4">
         <div class="lr-card h-100">
           <div class="lr-card-body">
             <div class="lr-stat-label">Reps</div>
@@ -178,10 +202,10 @@ require __DIR__ . '/../includes/head.php';
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="lr-card h-100">
           <div class="lr-card-body">
-            <div class="lr-stat-label">Form score</div>
+            <div class="lr-stat-label">Form quality</div>
             <div class="lr-stat-value mt-1"><?= (int)$pct ?>%</div>
             <span class="<?= h(formBadge($pct)) ?> mt-2">
               <?= $pct >= 85 ? 'Good overall form' : ($pct >= 70 ? 'Moderate — improve' : 'Needs attention') ?>
@@ -189,7 +213,7 @@ require __DIR__ . '/../includes/head.php';
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="lr-card h-100">
           <div class="lr-card-body">
             <div class="lr-stat-label">Fatigue flag</div>
@@ -200,17 +224,7 @@ require __DIR__ . '/../includes/head.php';
           </div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="lr-card h-100">
-          <div class="lr-card-body">
-            <div class="lr-stat-label">Processing</div>
-            <div class="lr-stat-value mt-1"><?= $session['processing_ms'] === null ? '—' : h((string)$session['processing_ms']) ?></div>
-            <p class="lr-stat-subtext mb-0"><?= $session['processing_ms'] === null ? 'No timing data.' : 'ms latency (Objective 5)' ?></p>
-          </div>
-        </div>
-      </div>
     </div>
-
     <!-- Trainer Review -->
     <div class="lr-card mb-4">
       <div class="lr-card-header">
@@ -247,79 +261,15 @@ require __DIR__ . '/../includes/head.php';
       </div>
     </div>
 
-    <!-- Details -->
+    <!-- Main details -->
     <div class="row g-4">
-      <!-- Reps -->
-      <div class="col-lg-7">
-        <div class="lr-card h-100">
-          <div class="lr-card-header">
-            <div class="lr-section-title mb-1">Rep Metrics</div>
-            <div class="lr-section-heading mb-0">Per-rep breakdown</div>
-          </div>
 
-          <div class="lr-card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
-                <thead>
-                  <tr>
-                  <th>#</th>
-                  <th>Snapshot</th>
-                  <th>Duration</th>
-                  <th>ROM</th>
-                  <th>Trunk sway</th>
-                  <th>Confidence</th>
-                  <th>Label</th>
-                  <th class="text-end">Anomaly</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php if (count($reps) === 0): ?>
-                  <tr>
-                    <td colspan="8" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
-                  </tr>
-                <?php else: ?>
-                  <?php foreach ($reps as $r): ?>
-                    <tr>
-                      <td><?= (int)$r['rep_index'] ?></td>
-                      <td>
-                        <?php if (!empty($r['snapshot_path'])): ?>
-                      <button
-                        type="button"
-                        class="lr-snap-btn"
-                        data-snap-src="<?= h($BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/')) ?>"
-                        data-snap-title="Rep <?= (int)$r['rep_index'] ?> Snapshot">
-                        <img
-                          src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
-                          alt="Rep <?= (int)$r['rep_index'] ?> snapshot"
-                          style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--lr-border);">
-                      </button>
-                        <?php else: ?>
-                          —
-                        <?php endif; ?>
-                      </td>
-                      <td><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'].' ms' ?></td>
-                      <td><?= $r['rom_score'] === null ? '—' : number_format((float)$r['rom_score'], 2) ?></td>
-                      <td><?= $r['trunk_sway'] === null ? '—' : number_format((float)$r['trunk_sway'], 2) ?></td>
-                      <td><?= $r['confidence_avg'] === null ? '—' : number_format((float)$r['confidence_avg'], 2) ?></td>
-                      <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
-                      <td class="text-end"><?= $r['anomaly_score'] === null ? '—' : number_format((float)$r['anomaly_score'], 2) ?></td>
-                    </tr>
-                  <?php endforeach; ?>
-                <?php endif; ?>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Feedback -->
-      <div class="col-lg-5">
-        <div class="lr-card mb-3">
+      <!-- Left: feedback -->
+      <div class="col-lg-5 order-1">
+        <div class="lr-card mb-4">
           <div class="lr-card-header">
             <div class="lr-section-title mb-1">Feedback</div>
-            <div class="lr-section-heading mb-0">Messages generated</div>
+            <div class="lr-section-heading mb-0">What to improve</div>
           </div>
           <div class="lr-card-body">
             <?php if (count($feedback) === 0): ?>
@@ -327,30 +277,79 @@ require __DIR__ . '/../includes/head.php';
             <?php else: ?>
               <div class="d-grid gap-2">
                 <?php foreach ($feedback as $f): ?>
-                  <div class="p-3 rounded-3" style="border:1px solid var(--lr-border); background: rgba(15,23,42,0.65);">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <?php
-                        $repLabel = '';
-                        if (!empty($f['feedback_meta'])) {
-                          $meta = json_decode((string)$f['feedback_meta'], true);
-                          if (is_array($meta)) {
-                            // primary: rep
-                            if (isset($meta['rep'])) $repLabel = 'Rep ' . (int)$meta['rep'];
-                            // optional fallback if you ever store it differently
-                            elseif (isset($meta['rep_index'])) $repLabel = 'Rep ' . (int)$meta['rep_index'];
-                            elseif (isset($meta['since_rep'])) $repLabel = 'Since Rep ' . (int)$meta['since_rep']; // fatigue event
-                          }
-                        }
+                  <?php
+                    $repLabel = '';
+                    if (!empty($f['feedback_meta'])) {
+                      $meta = json_decode((string)$f['feedback_meta'], true);
+                      if (is_array($meta)) {
+                        if (isset($meta['rep'])) $repLabel = 'Rep ' . (int)$meta['rep'];
+                        elseif (isset($meta['rep_index'])) $repLabel = 'Rep ' . (int)$meta['rep_index'];
+                        elseif (isset($meta['since_rep'])) $repLabel = 'Since Rep ' . (int)$meta['since_rep'];
+                      }
+                    }
 
-                        $typeLabel = (string)($f['feedback_type'] ?? 'posture');
-                        $title = ($repLabel !== '' ? $repLabel . ' • ' : '') . $typeLabel;
-                      ?>
+                    $typeLabel = (string)($f['feedback_type'] ?? 'posture');
+                    $title = ($repLabel !== '' ? $repLabel . ' • ' : '') . $typeLabel;
+                    $sevClass = 'lr-feedback-card';
+                    if ((string)$f['severity'] === 'danger') $sevClass .= ' lr-feedback-card-danger';
+                    elseif ((string)$f['severity'] === 'warning') $sevClass .= ' lr-feedback-card-warning';
+                  ?>
+                  <div class="<?= $sevClass ?>">
+                    <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                       <div class="lr-section-title mb-0 text-capitalize"><?= h($title) ?></div>
                       <span class="<?= h(severityBadge((string)$f['severity'])) ?>"><?= h((string)$f['severity']) ?></span>
                     </div>
-                    <div><?= h((string)$f['feedback_text']) ?></div>
-                    <div class="lr-stat-subtext mt-2 mb-0">
+                    <div class="fw-semibold mb-1"><?= h((string)$f['feedback_text']) ?></div>
+                    <div class="lr-stat-subtext mb-0">
                       <?= h(date("M d, Y • g:i A", strtotime((string)$f['created_at']))) ?>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: simple snapshots -->
+      <div class="col-lg-7 order-2">
+        <div class="lr-card mb-4">
+          <div class="lr-card-header">
+            <div class="lr-section-title mb-1">Snapshots</div>
+            <div class="lr-section-heading mb-0">Per-rep images</div>
+          </div>
+          <div class="lr-card-body">
+            <?php
+              $snapshot_reps = array_values(array_filter($reps, function ($r) {
+                return !empty($r['snapshot_path']);
+              }));
+            ?>
+
+            <?php if (count($snapshot_reps) === 0): ?>
+              <div class="lr-stat-subtext">No rep snapshots saved for this session yet.</div>
+            <?php else: ?>
+              <div class="lr-snapshot-grid">
+                <?php foreach ($snapshot_reps as $r): ?>
+                  <?php
+                    $repIndex = (int)$r['rep_index'];
+                    $label = strtolower((string)($r['form_label'] ?? 'good'));
+                    $labelClass = ($label === 'bad') ? 'lr-badge lr-badge-danger' : 'lr-badge lr-badge-good';
+                  ?>
+                  <div class="lr-snapshot-card">
+                    <button
+                      type="button"
+                      class="lr-snap-btn lr-snapshot-button"
+                      data-snap-src="<?= h($BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/')) ?>"
+                      data-snap-title="Rep <?= $repIndex ?> Snapshot">
+                      <img
+                        src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
+                        alt="Rep <?= $repIndex ?> snapshot"
+                        class="lr-snapshot-thumb">
+                    </button>
+
+                    <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+                      <div class="fw-semibold">Rep <?= $repIndex ?></div>
+                      <span class="<?= $labelClass ?> text-capitalize"><?= h($label) ?></span>
                     </div>
                   </div>
                 <?php endforeach; ?>
@@ -361,19 +360,80 @@ require __DIR__ . '/../includes/head.php';
 
         <div class="lr-card">
           <div class="lr-card-header">
-            <div class="lr-section-title mb-1">Files</div>
-            <div class="lr-section-heading mb-0">Prototype paths</div>
+            <div class="lr-section-title mb-1">Advanced</div>
+            <div class="lr-section-heading mb-0">Detailed metrics</div>
           </div>
           <div class="lr-card-body">
-            <div class="lr-stat-subtext mb-2"><strong>Video:</strong> <?= h((string)($session['video_path'] ?? '—')) ?></div>
-            <div class="lr-stat-subtext mb-0"><strong>Result JSON:</strong> <?= h((string)($session['result_json_path'] ?? '—')) ?></div>
+            <details class="lr-advanced-filters">
+              <summary class="lr-advanced-summary">Show technical details</summary>
+
+              <div class="mt-3">
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <div class="lr-mini-stat">
+                      <div class="lr-stat-label">Processing time</div>
+                      <div class="fw-semibold">
+                        <?= $session['processing_ms'] === null ? '—' : h((string)$session['processing_ms']) . ' ms' ?>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="lr-mini-stat">
+                      <div class="lr-stat-label">Source</div>
+                      <div class="fw-semibold text-capitalize"><?= h((string)$session['source_type']) ?></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                  <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Duration</th>
+                        <th>ROM</th>
+                        <th>Trunk sway</th>
+                        <th>Confidence</th>
+                        <th>Label</th>
+                        <th class="text-end">Anomaly</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    <?php if (count($reps) === 0): ?>
+                      <tr>
+                        <td colspan="7" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
+                      </tr>
+                    <?php else: ?>
+                      <?php foreach ($reps as $r): ?>
+                        <tr>
+                          <td><?= (int)$r['rep_index'] ?></td>
+                          <td><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'].' ms' ?></td>
+                          <td><?= $r['rom_score'] === null ? '—' : number_format((float)$r['rom_score'], 2) ?></td>
+                          <td><?= $r['trunk_sway'] === null ? '—' : number_format((float)$r['trunk_sway'], 2) ?></td>
+                          <td><?= $r['confidence_avg'] === null ? '—' : number_format((float)$r['confidence_avg'], 2) ?></td>
+                          <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
+                          <td class="text-end"><?= $r['anomaly_score'] === null ? '—' : number_format((float)$r['anomaly_score'], 2) ?></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                  </table>
+                </div>
+
+                <details class="lr-advanced-filters mt-3">
+                  <summary class="lr-advanced-summary">Show prototype file paths</summary>
+                  <div class="mt-3">
+                    <div class="lr-stat-subtext mb-2"><strong>Video:</strong> <?= h((string)($session['video_path'] ?? '—')) ?></div>
+                    <div class="lr-stat-subtext mb-0"><strong>Result JSON:</strong> <?= h((string)($session['result_json_path'] ?? '—')) ?></div>
+                  </div>
+                </details>
+              </div>
+            </details>
           </div>
         </div>
-
       </div>
-    </div>
 
-  </div>
+    </div>
 </div>
 
 <div class="lr-snap-modal-backdrop" id="lrSnapBackdrop" hidden></div>
@@ -428,5 +488,96 @@ require __DIR__ . '/../includes/head.php';
   });
 })();
 </script>
+
+<style>
+.lr-issue-card{
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(15,23,42,0.45);
+}
+.lr-issue-card-warning{
+  border-color: color-mix(in srgb, var(--lr-warning) 35%, var(--lr-border));
+  background: color-mix(in srgb, var(--lr-warning) 8%, rgba(15,23,42,0.55));
+}
+.lr-issue-card-danger{
+  border-color: color-mix(in srgb, var(--lr-danger) 40%, var(--lr-border));
+  background: color-mix(in srgb, var(--lr-danger) 8%, rgba(15,23,42,0.55));
+}
+
+.lr-feedback-card{
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(15,23,42,0.65);
+}
+.lr-feedback-card-warning{
+  border-color: color-mix(in srgb, var(--lr-warning) 35%, var(--lr-border));
+}
+.lr-feedback-card-danger{
+  border-color: color-mix(in srgb, var(--lr-danger) 40%, var(--lr-border));
+}
+
+.lr-snapshot-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.lr-snapshot-card{
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(15,23,42,0.42);
+}
+
+.lr-snapshot-button{
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lr-snapshot-thumb{
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--lr-border);
+}
+
+.lr-mini-stat{
+  border: 1px solid var(--lr-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(15,23,42,0.32);
+}
+
+.lr-advanced-filters{
+  border: 1px solid var(--lr-border);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  background: rgba(15,23,42,0.28);
+}
+.lr-advanced-summary{
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: var(--lr-text);
+  margin: 0;
+}
+.lr-advanced-summary::-webkit-details-marker{
+  display: none;
+}
+.lr-advanced-summary::after{
+  content: " +";
+  color: var(--lr-text-muted);
+  font-weight: 700;
+}
+.lr-advanced-filters[open] .lr-advanced-summary::after{
+  content: " −";
+}
+</style>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>
