@@ -283,12 +283,16 @@ require __DIR__ . '/../includes/head.php';
                       <td><?= (int)$r['rep_index'] ?></td>
                       <td>
                         <?php if (!empty($r['snapshot_path'])): ?>
-                          <a href="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>" target="_blank">
-                            <img
-                              src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
-                              alt="Rep <?= (int)$r['rep_index'] ?> snapshot"
-                              style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--lr-border);">
-                          </a>
+                      <button
+                        type="button"
+                        class="lr-snap-btn"
+                        data-snap-src="<?= h($BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/')) ?>"
+                        data-snap-title="Rep <?= (int)$r['rep_index'] ?> Snapshot">
+                        <img
+                          src="<?= $BASE_URL . '/' . ltrim((string)$r['snapshot_path'], '/') ?>"
+                          alt="Rep <?= (int)$r['rep_index'] ?> snapshot"
+                          style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--lr-border);">
+                      </button>
                         <?php else: ?>
                           —
                         <?php endif; ?>
@@ -371,5 +375,58 @@ require __DIR__ . '/../includes/head.php';
 
   </div>
 </div>
+
+<div class="lr-snap-modal-backdrop" id="lrSnapBackdrop" hidden></div>
+
+<div class="lr-snap-modal" id="lrSnapModal" hidden>
+  <div class="lr-snap-dialog">
+    <button type="button" class="lr-snap-close" id="lrSnapClose" aria-label="Close image">×</button>
+    <div class="lr-snap-title" id="lrSnapTitle">Snapshot</div>
+    <img src="" alt="Session snapshot preview" id="lrSnapImage" class="lr-snap-image">
+  </div>
+</div>
+
+<script>
+(() => {
+  const modal = document.getElementById('lrSnapModal');
+  const backdrop = document.getElementById('lrSnapBackdrop');
+  const img = document.getElementById('lrSnapImage');
+  const title = document.getElementById('lrSnapTitle');
+  const closeBtn = document.getElementById('lrSnapClose');
+  const triggers = document.querySelectorAll('.lr-snap-btn');
+
+  function openSnap(src, label) {
+    img.src = src;
+    title.textContent = label || 'Snapshot';
+    modal.hidden = false;
+    backdrop.hidden = false;
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeSnap() {
+    modal.hidden = true;
+    backdrop.hidden = true;
+    img.src = '';
+    document.body.classList.remove('lr-modal-open');
+  }
+
+  triggers.forEach(btn => {
+    btn.addEventListener('click', () => {
+      openSnap(btn.dataset.snapSrc, btn.dataset.snapTitle);
+    });
+  });
+
+  closeBtn.addEventListener('click', closeSnap);
+  backdrop.addEventListener('click', closeSnap);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeSnap();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.hidden) closeSnap();
+  });
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

@@ -79,6 +79,8 @@
   // “What arrow should I show right now?”
   // We keep this aligned with your instruction state.
   let lastKnownPhase = "raise"; // "raise" or "lower"
+  let prevPhaseRaw = "";
+  const repScreenshotPriority = new Map(); // rep_index -> 0 good, 1 warning, 2 unsafe
 
 /* =========================
    SFX SYSTEM
@@ -292,6 +294,50 @@ const DANGER_COOLDOWN_MS = 1200;
     if (s.includes("down") || s.includes("lower")) return "down";
     return "";
   }
+
+  function normalizeFeedbackLevel(raw, text = "") {
+  const s = String(raw ?? "").toLowerCase().trim();
+  const t = String(text ?? "").toLowerCase();
+
+  if (s === "unsafe" || s === "danger" || t.includes("unsafe")) return "unsafe";
+  if (s === "warning" || t.includes("coaching")) return "warning";
+  if (s === "good" || t.includes("stable")) return "good";
+  return "none";
+}
+
+function feedbackPriority(level) {
+  if (level === "unsafe") return 2;
+  if (level === "warning") return 1;
+  if (level === "good") return 0;
+  return -1;
+}
+
+async function saveRepScreenshotIfBetter(repIndex, level) {
+  if (!running) return;
+  if (!logId || !sessionToken) return;
+  if (!video.videoWidth || !video.videoHeight) return;
+  if (!repIndex || repIndex < 1) return;
+
+  const incomingPriority = feedbackPriority(level);
+  if (incomingPriority < 0) return;
+
+  const currentPriority = repScreenshotPriority.has(repIndex)
+    ? repScreenshotPriority.get(repIndex)
+    : -1;
+
+  if (incomingPriority <= currentPriority) return;
+
+  const screenshotDataUrl = captureFullResScreenshot();
+
+  await api("rep_screenshot", {
+    log_id: logId,
+    session_token: sessionToken,
+    rep_index: repIndex,
+    image_dataurl: screenshotDataUrl,
+  });
+
+  repScreenshotPriority.set(repIndex, incomingPriority);
+}
 
   /* =========================
      DRAWING PRIMITIVES
@@ -602,39 +648,55 @@ const DANGER_COOLDOWN_MS = 1200;
       const repNum = toRepNum(status.rep_now) ?? 0;
       const repJustIncremented = repNum > prevRepNum;
 
-      if (repJustIncremented) {
-        const now = Date.now();
+      const phaseRaw = normalizeState(status.phase ?? status.state);
+      const liveFeedbackLevel = normalizeFeedbackLevel(
+        status.live_feedback_level,
+        status.live_feedback_text
+      );
 
-        // Save exactly 1 screenshot for this rep
-        try {
-          const screenshotDataUrl = captureFullResScreenshot();
+      // Current rep being performed = completed reps + 1
+      const currentRepIndex = repNum + 1;
 
-          await api("rep_screenshot", {
-            log_id: logId,
-            session_token: sessionToken,
-            rep_index: repNum,
-            image_dataurl: screenshotDataUrl,
-          });
-        } catch (e) {
-          console.warn("rep_screenshot failed:", e.message);
+      // Peak moment = state changes from down -> up
+      const justHitPeak = (prevPhaseRaw === "down" && phaseRaw === "up");
+
+      try {
+        if (justHitPeak) {
+          await saveRepScreenshotIfBetter(currentRepIndex, "good");
         }
 
-        if (lastRepTextUpper.includes("UNSAFE")) {
-          if ((now - lastDangerSfxAt) >= DANGER_COOLDOWN_MS) {
-            sfx("danger");
-            lastDangerSfxAt = now;
-          }
-        } else if (lastRepTextUpper.includes("COACHING")) {
-          if ((now - lastCoachSfxAt) >= COACH_COOLDOWN_MS) {
-            sfx("coach");
-            lastCoachSfxAt = now;
-          }
-        } else {
-          sfx("rep");
+        if (liveFeedbackLevel === "warning") {
+          await saveRepScreenshotIfBetter(currentRepIndex, "warning");
+        } else if (liveFeedbackLevel === "unsafe") {
+          await saveRepScreenshotIfBetter(currentRepIndex, "unsafe");
         }
-
-        prevRepNum = repNum;
+      } catch (e) {
+        console.warn("priority screenshot save failed:", e.message);
       }
+
+      if (phaseRaw) {
+        prevPhaseRaw = phaseRaw;
+      }
+
+    if (repJustIncremented) {
+      const now = Date.now();
+
+      if (lastRepTextUpper.includes("UNSAFE")) {
+        if ((now - lastDangerSfxAt) >= DANGER_COOLDOWN_MS) {
+          sfx("danger");
+          lastDangerSfxAt = now;
+        }
+      } else if (lastRepTextUpper.includes("COACHING")) {
+        if ((now - lastCoachSfxAt) >= COACH_COOLDOWN_MS) {
+          sfx("coach");
+          lastCoachSfxAt = now;
+        }
+      } else {
+        sfx("rep");
+      }
+
+      prevRepNum = repNum;
+    }
 
       drawAnnotatedToOverlay(annotated, status);
 
@@ -742,6 +804,8 @@ const DANGER_COOLDOWN_MS = 1200;
 
     prevRepNum = 0;
     prevStateLower = "";
+    prevPhaseRaw = "";
+    repScreenshotPriority.clear();
 
     lastKnownPhase = "raise";
     stickyPhrase = "";
@@ -788,6 +852,8 @@ const DANGER_COOLDOWN_MS = 1200;
       logId = 0;
       prevRepNum = 0;
       prevStateLower = "";
+      prevPhaseRaw = "";
+      repScreenshotPriority.clear();
       if (uiLogIdMain) uiLogIdMain.textContent = "—";
       if (uiLogIdSide) uiLogIdSide.textContent = "—";
       if (idleOverlay) idleOverlay.style.display = "flex";

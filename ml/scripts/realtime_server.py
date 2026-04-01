@@ -801,6 +801,7 @@ class BicepCurlPipeline:
 
         feedback = "Tracking..."
         fb_color = TEXT_COLOR
+        feedback_level = "none"
 
         right_elbow_level = 0
         left_elbow_level = 0
@@ -875,12 +876,15 @@ class BicepCurlPipeline:
                 if bad:
                     feedback = "UNSAFE: " + bad[0]
                     fb_color = BAD_COLOR
+                    feedback_level = "unsafe"
                 elif tips:
                     feedback = "COACHING: " + tips[0]
                     fb_color = WARN_COLOR
+                    feedback_level = "warning"
                 else:
                     feedback = "STATUS: Stable"
                     fb_color = GOOD_COLOR
+                    feedback_level = "good"
 
                 if sess.rep_counter.state == "up":
                     sess.rep_counter.mark_feedback(bad, tips)
@@ -1056,11 +1060,13 @@ class BicepCurlPipeline:
                 sess.set_counts["low_conf"] += 1
                 feedback = f"Tracking quality low ({conf_mean:.2f})"
                 fb_color = WARN_COLOR
+                feedback_level = "none"
 
         else:
             sess.set_counts["low_conf"] += 1
             feedback = "No pose detected"
             fb_color = WARN_COLOR
+            feedback_level = "none"
 
         if DRAW_TEXT_OVERLAY:
             cv2.putText(frame_bgr, feedback, (10, h - 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, fb_color, 2)
@@ -1082,6 +1088,8 @@ class BicepCurlPipeline:
             "fatigue_warning": bool(sess.fatigue_text),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
+            "live_feedback_level": str(feedback_level),
+            "live_feedback_text": str(feedback),
         }
         return frame_bgr, status
 
@@ -1135,6 +1143,7 @@ class ShoulderPressPipeline:
 
         feedback = "Tracking..."
         fb_color = TEXT_COLOR
+        feedback_level = "none"
 
         right_stack_level = 0
         left_stack_level = 0
@@ -1238,12 +1247,15 @@ class ShoulderPressPipeline:
                 if bad:
                     feedback = "UNSAFE: " + bad[0]
                     fb_color = BAD_COLOR
+                    feedback_level = "unsafe"
                 elif tips:
                     feedback = "COACHING: " + tips[0]
                     fb_color = WARN_COLOR
+                    feedback_level = "warning"
                 else:
                     feedback = "STATUS: Stable"
                     fb_color = GOOD_COLOR
+                    feedback_level = "good"
 
                 if sess.rep_counter.state == "up":
                     sess.rep_counter.mark_feedback(bad, tips)
@@ -1417,10 +1429,12 @@ class ShoulderPressPipeline:
                 sess.set_counts["low_conf"] += 1
                 feedback = f"Low pose confidence ({conf_mean:.2f})"
                 fb_color = WARN_COLOR
+                feedback_level = "none"
         else:
             sess.set_counts["low_conf"] += 1
             feedback = "No pose detected"
             fb_color = WARN_COLOR
+            feedback_level = "none"
 
         if DRAW_TEXT_OVERLAY:
             cv2.putText(frame_bgr, feedback, (10, h - 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, fb_color, 2)
@@ -1436,6 +1450,8 @@ class ShoulderPressPipeline:
             "fatigue_warning": bool(sess.fatigue_index >= FATIGUE_WARN_INDEX),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
+            "live_feedback_level": str(feedback_level),
+            "live_feedback_text": str(feedback),
         }
         return frame_bgr, status
 
@@ -1495,6 +1511,7 @@ class LateralRaisePipeline:
 
         feedback = "Tracking..."
         fb_color = TEXT_COLOR
+        feedback_level = "none"
 
         trunk_level = 0
         tilt_level = 0
@@ -1641,20 +1658,25 @@ class LateralRaisePipeline:
                 if bad:
                     feedback = "UNSAFE: " + bad[0]
                     fb_color = BAD_COLOR
+                    feedback_level = "unsafe"
                 elif tips:
                     feedback = "COACHING: " + tips[0]
                     fb_color = WARN_COLOR
+                    feedback_level = "warning"
                 else:
                     worst_elbow = max(elbow_level_left, elbow_level_right)
                     if worst_elbow == 2:
                         feedback = "UNSAFE: Don't curl (elbow too bent)"
                         fb_color = BAD_COLOR
+                        feedback_level = "unsafe"
                     elif worst_elbow == 1:
                         feedback = "COACHING: Keep arms straighter"
                         fb_color = WARN_COLOR
+                        feedback_level = "warning"
                     else:
                         feedback = "STATUS: Stable"
                         fb_color = GOOD_COLOR
+                        feedback_level = "good"
 
                 self.highlight(frame_bgr, res.pose_landmarks, trunk_level, tilt_level, asym_level, elbow_level_right, elbow_level_left)
 
@@ -1843,11 +1865,13 @@ class LateralRaisePipeline:
                 sess.set_counts["low_conf"] += 1
                 feedback = f"Low pose confidence ({conf_mean:.2f})"
                 fb_color = WARN_COLOR
+                feedback_level = "none"
 
         else:
             sess.set_counts["low_conf"] += 1
             feedback = "No pose detected"
             fb_color = WARN_COLOR
+            feedback_level = "none"
 
         if DRAW_TEXT_OVERLAY:
             cv2.putText(frame_bgr, feedback, (10, h - 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, fb_color, 2)
@@ -1863,6 +1887,8 @@ class LateralRaisePipeline:
             "fatigue_warning": bool(sess.fatigue_index >= FATIGUE_WARN_INDEX),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
+            "live_feedback_level": str(feedback_level),
+            "live_feedback_text": str(feedback),
         }
         return frame_bgr, status
 

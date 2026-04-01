@@ -1092,3 +1092,99 @@ select option {
     min-width: 0;
   }
 }
+
+/* =========================================================
+   SNAPSHOT LIGHTBOX
+   ========================================================= */
+.lr-snap-btn{
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.lr-snap-btn img{
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.lr-snap-btn:hover img{
+  transform: scale(1.04);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+}
+
+.lr-snap-modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,0.72);
+  z-index: 3000;
+}
+
+.lr-snap-modal{
+  position: fixed;
+  inset: 0;
+  z-index: 3010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.lr-snap-dialog{
+  position: relative;
+  width: min(980px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid var(--lr-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--lr-surface) 95%, transparent),
+    color-mix(in srgb, var(--lr-surface-alt) 95%, transparent) 40%,
+    color-mix(in srgb, var(--lr-surface-alt) 80%, var(--lr-accent) 20%) 100%
+  );
+  box-shadow: var(--lr-shadow-drop);
+  padding: 18px 18px 16px;
+}
+
+.lr-snap-title{
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin-bottom: 12px;
+  color: var(--lr-text);
+}
+
+.lr-snap-image{
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 140px);
+  object-fit: contain;
+  border-radius: 14px;
+  border: 1px solid var(--lr-border);
+  background: rgba(255,255,255,0.04);
+}
+
+.lr-snap-close{
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--lr-border);
+  background: color-mix(in srgb, var(--lr-bg) 55%, transparent);
+  color: var(--lr-text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lr-snap-close:hover{
+  background: color-mix(in srgb, var(--lr-accent) 18%, transparent);
+}
+
+body.lr-modal-open{
+  overflow: hidden;
+}
