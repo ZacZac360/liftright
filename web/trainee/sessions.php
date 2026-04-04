@@ -273,7 +273,8 @@ require __DIR__ . '/../includes/head.php';
         <h1 class="lr-section-heading mb-1">My Sessions</h1>
         <p class="lr-stat-subtext mb-0">Review past workout sessions and open a detailed breakdown for each one.</p>
       </div>
-      <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+      <div class="col-lg-4 text-lg-end mt-3 mt-lg-0 d-flex justify-content-lg-end gap-2 flex-wrap">
+        <button type="button" id="btnPageGuide" class="btn btn-outline-light btn-lg">? Guide</button>
         <a class="btn btn-primary btn-lg px-4" href="<?= $BASE_URL ?>/trainee/start-session.php">
           Start New Session
         </a>
@@ -522,6 +523,48 @@ require __DIR__ . '/../includes/head.php';
   </div>
 </div>
 
+<div class="lr-modal-backdrop" id="pageGuideBackdrop" style="display:none;"></div>
+<div class="lr-modal" id="pageGuideModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pageGuideTitle">
+  <div class="lr-modal-card">
+    <div class="lr-modal-head">
+      <div>
+        <div class="lr-section-title mb-1">Page Guide</div>
+        <div class="lr-section-heading mb-0" id="pageGuideTitle">How to use My Sessions</div>
+      </div>
+      <button class="btn btn-outline-light btn-sm" id="btnClosePageGuide" type="button">Close</button>
+    </div>
+
+    <div class="lr-modal-body">
+      <div class="d-grid gap-3">
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Browse history</div>
+          <p class="lr-step-text mb-0">
+            This page lists your recorded workout sessions so you can review your progress over time.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Use filters</div>
+          <p class="lr-step-text mb-0">
+            Filter by exercise, date, or sort order to find a session faster.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Open details</div>
+          <p class="lr-step-text mb-0">
+            Press <strong>View</strong> on any row to open the detailed session breakdown.
+          </p>
+        </div>
+
+        <div class="d-flex justify-content-end">
+          <button type="button" class="btn btn-primary" id="btnDonePageGuide">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
 .lr-advanced-filters{
   border: 1px solid var(--lr-border);
@@ -548,6 +591,37 @@ require __DIR__ . '/../includes/head.php';
   content: " −";
 }
 </style>
+
+<script>
+(() => {
+  const guideKey = 'lr_guide_sessions_seen';
+  const modal = document.getElementById('pageGuideModal');
+  const backdrop = document.getElementById('pageGuideBackdrop');
+  const btnOpen = document.getElementById('btnPageGuide');
+  const btnClose = document.getElementById('btnClosePageGuide');
+  const btnDone = document.getElementById('btnDonePageGuide');
+
+  function openGuide() {
+    modal.style.display = 'flex';
+    backdrop.style.display = 'block';
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeGuide(markSeen = false) {
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+    document.body.classList.remove('lr-modal-open');
+    if (markSeen) localStorage.setItem(guideKey, '1');
+  }
+
+  if (!localStorage.getItem(guideKey)) openGuide();
+
+  btnOpen?.addEventListener('click', openGuide);
+  btnClose?.addEventListener('click', () => closeGuide(true));
+  btnDone?.addEventListener('click', () => closeGuide(true));
+  backdrop?.addEventListener('click', () => closeGuide(true));
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>
 

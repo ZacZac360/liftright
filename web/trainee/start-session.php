@@ -25,6 +25,7 @@ require __DIR__ . '/../includes/head.php';
 
         <div class="col-lg-5">
           <div class="lr-live-topbar-actions">
+            <button type="button" id="btnPageGuide" class="btn btn-outline-light btn-lg">? Guide</button>
             <button id="btnStart" class="btn btn-primary btn-lg lr-btn-strong">Start Session</button>
             <button id="btnStop" class="btn btn-outline-light btn-lg" disabled>Stop</button>
           </div>
@@ -274,6 +275,57 @@ require __DIR__ . '/../includes/head.php';
   </div>
 </div>
 
+<!-- ---------- Page Guide Modal (Onboarding) ---------- -->
+<div class="lr-modal-backdrop" id="pageGuideBackdrop" style="display:none;"></div>
+<div class="lr-modal" id="pageGuideModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pageGuideTitle">
+  <div class="lr-modal-card">
+    <div class="lr-modal-head">
+      <div>
+        <div class="lr-section-title mb-1">Page Guide</div>
+        <div class="lr-section-heading mb-0" id="pageGuideTitle">How to use Start Session</div>
+      </div>
+      <button class="btn btn-outline-light btn-sm" id="btnClosePageGuide" type="button">Close</button>
+    </div>
+
+    <div class="lr-modal-body">
+      <div class="d-grid gap-3">
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">1. Choose your exercise</div>
+          <p class="lr-step-text mb-0">
+            Select the exercise you are about to perform before starting the webcam session.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">2. Check your framing</div>
+          <p class="lr-step-text mb-0">
+            Keep your shoulders to hips visible, face the camera, and make sure the room is bright enough.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">3. Start and follow feedback</div>
+          <p class="lr-step-text mb-0">
+            Press <strong>Start Session</strong>, perform your reps, and watch the live coaching panel for instructions, warnings, and rep updates.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">4. End the session</div>
+          <p class="lr-step-text mb-0">
+            Press <strong>Stop</strong> when finished. Your results will be saved so you can review them later.
+          </p>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 flex-wrap">
+          <button type="button" class="btn btn-outline-light" id="btnLaterPageGuide">Got it</button>
+          <button type="button" class="btn btn-primary" id="btnStartFromGuide">Go to Start Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   // JS reads this so we don't hardcode paths inside the .js file
   window.LR_START_SESSION_CONFIG = {
@@ -283,5 +335,48 @@ require __DIR__ . '/../includes/head.php';
 </script>
 
 <script src="../assets/js/start-session.js?v=5"></script>
+
+<script>
+(() => {
+  const guideKey = 'lr_guide_start_session_seen';
+  const modal = document.getElementById('pageGuideModal');
+  const backdrop = document.getElementById('pageGuideBackdrop');
+  const btnOpen = document.getElementById('btnPageGuide');
+  const btnClose = document.getElementById('btnClosePageGuide');
+  const btnLater = document.getElementById('btnLaterPageGuide');
+  const btnStartFromGuide = document.getElementById('btnStartFromGuide');
+
+  function openGuide() {
+    modal.style.display = 'flex';
+    backdrop.style.display = 'block';
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeGuide(markSeen = false) {
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+    document.body.classList.remove('lr-modal-open');
+    if (markSeen) {
+      localStorage.setItem(guideKey, '1');
+    }
+  }
+
+  if (!localStorage.getItem(guideKey)) {
+    openGuide();
+  }
+
+  btnOpen?.addEventListener('click', openGuide);
+  btnClose?.addEventListener('click', () => closeGuide(true));
+  btnLater?.addEventListener('click', () => closeGuide(true));
+  btnStartFromGuide?.addEventListener('click', () => closeGuide(true));
+  backdrop?.addEventListener('click', () => closeGuide(true));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') {
+      closeGuide(true);
+    }
+  });
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

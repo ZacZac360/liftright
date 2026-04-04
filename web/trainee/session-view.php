@@ -184,11 +184,12 @@ require __DIR__ . '/../includes/head.php';
           Recorded <?= h(date("M d, Y • g:i A", strtotime((string)$session['created_at']))) ?>
         </p>
       </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/trainee/sessions.php">
-          ← Back to sessions
-        </a>
-      </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex justify-content-md-end gap-2 flex-wrap">
+          <button type="button" id="btnPageGuide" class="btn btn-outline-light">? Guide</button>
+          <a class="btn btn-outline-light" href="<?= $BASE_URL ?>/trainee/sessions.php">
+            ← Back to sessions
+          </a>
+        </div>
     </div>
 
     <!-- Summary cards -->
@@ -225,6 +226,7 @@ require __DIR__ . '/../includes/head.php';
         </div>
       </div>
     </div>
+    
     <!-- Trainer Review -->
     <div class="lr-card mb-4">
       <div class="lr-card-header">
@@ -436,6 +438,48 @@ require __DIR__ . '/../includes/head.php';
     </div>
 </div>
 
+<div class="lr-modal-backdrop" id="pageGuideBackdrop" style="display:none;"></div>
+<div class="lr-modal" id="pageGuideModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pageGuideTitle">
+  <div class="lr-modal-card">
+    <div class="lr-modal-head">
+      <div>
+        <div class="lr-section-title mb-1">Page Guide</div>
+        <div class="lr-section-heading mb-0" id="pageGuideTitle">How to use Session Details</div>
+      </div>
+      <button class="btn btn-outline-light btn-sm" id="btnClosePageGuide" type="button">Close</button>
+    </div>
+
+    <div class="lr-modal-body">
+      <div class="d-grid gap-3">
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Session summary</div>
+          <p class="lr-step-text mb-0">
+            The top cards summarize your total reps, overall form quality, and whether fatigue was detected.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Trainer review and feedback</div>
+          <p class="lr-step-text mb-0">
+            Use the trainer review and feedback section to understand the most important corrections for future sessions.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Snapshots</div>
+          <p class="lr-step-text mb-0">
+            Open the rep snapshots to visually inspect what happened during each repetition.
+          </p>
+        </div>
+
+        <div class="d-flex justify-content-end">
+          <button type="button" class="btn btn-primary" id="btnDonePageGuide">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="lr-snap-modal-backdrop" id="lrSnapBackdrop" hidden></div>
 
 <div class="lr-snap-modal" id="lrSnapModal" hidden>
@@ -445,6 +489,37 @@ require __DIR__ . '/../includes/head.php';
     <img src="" alt="Session snapshot preview" id="lrSnapImage" class="lr-snap-image">
   </div>
 </div>
+
+<script>
+(() => {
+  const guideKey = 'lr_guide_session_view_seen';
+  const modal = document.getElementById('pageGuideModal');
+  const backdrop = document.getElementById('pageGuideBackdrop');
+  const btnOpen = document.getElementById('btnPageGuide');
+  const btnClose = document.getElementById('btnClosePageGuide');
+  const btnDone = document.getElementById('btnDonePageGuide');
+
+  function openGuide() {
+    modal.style.display = 'flex';
+    backdrop.style.display = 'block';
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeGuide(markSeen = false) {
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+    document.body.classList.remove('lr-modal-open');
+    if (markSeen) localStorage.setItem(guideKey, '1');
+  }
+
+  if (!localStorage.getItem(guideKey)) openGuide();
+
+  btnOpen?.addEventListener('click', openGuide);
+  btnClose?.addEventListener('click', () => closeGuide(true));
+  btnDone?.addEventListener('click', () => closeGuide(true));
+  backdrop?.addEventListener('click', () => closeGuide(true));
+})();
+</script>
 
 <script>
 (() => {

@@ -91,7 +91,8 @@ require __DIR__ . '/../includes/head.php';
           Here's a snapshot of your recent training quality and fatigue patterns.
         </p>
       </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex justify-content-md-end gap-2 flex-wrap">
+        <button type="button" id="btnPageGuide" class="btn btn-outline-light">? Guide</button>
         <a class="btn btn-primary px-3" href="<?= $BASE_URL ?>/trainee/start-session.php">
           Start New Session
         </a>
@@ -238,10 +239,83 @@ require __DIR__ . '/../includes/head.php';
   </div>
 </div>
 
+<div class="lr-modal-backdrop" id="pageGuideBackdrop" style="display:none;"></div>
+<div class="lr-modal" id="pageGuideModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pageGuideTitle">
+  <div class="lr-modal-card">
+    <div class="lr-modal-head">
+      <div>
+        <div class="lr-section-title mb-1">Page Guide</div>
+        <div class="lr-section-heading mb-0" id="pageGuideTitle">How to use your dashboard</div>
+      </div>
+      <button class="btn btn-outline-light btn-sm" id="btnClosePageGuide" type="button">Close</button>
+    </div>
+
+    <div class="lr-modal-body">
+      <div class="d-grid gap-3">
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Overview</div>
+          <p class="lr-step-text mb-0">
+            This page shows your recent training summary, average form quality, and latest recorded activity.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Recent sessions</div>
+          <p class="lr-step-text mb-0">
+            Use the recent sessions table to quickly open and review your latest workout results.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Start a new workout</div>
+          <p class="lr-step-text mb-0">
+            Press <strong>Start New Session</strong> whenever you want to begin a new webcam-based posture assessment.
+          </p>
+        </div>
+
+        <div class="d-flex justify-content-end">
+          <button type="button" class="btn btn-primary" id="btnDonePageGuide">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   window.LR_DASHBOARD = {
     trendUrl: "<?= $BASE_URL ?>/api/dashboard_trend.php"
   };
+</script>
+
+<script>
+(() => {
+  const guideKey = 'lr_guide_dashboard_seen';
+  const modal = document.getElementById('pageGuideModal');
+  const backdrop = document.getElementById('pageGuideBackdrop');
+  const btnOpen = document.getElementById('btnPageGuide');
+  const btnClose = document.getElementById('btnClosePageGuide');
+  const btnDone = document.getElementById('btnDonePageGuide');
+
+  function openGuide() {
+    modal.style.display = 'flex';
+    backdrop.style.display = 'block';
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeGuide(markSeen = false) {
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+    document.body.classList.remove('lr-modal-open');
+    if (markSeen) localStorage.setItem(guideKey, '1');
+  }
+
+  if (!localStorage.getItem(guideKey)) openGuide();
+
+  btnOpen?.addEventListener('click', openGuide);
+  btnClose?.addEventListener('click', () => closeGuide(true));
+  btnDone?.addEventListener('click', () => closeGuide(true));
+  backdrop?.addEventListener('click', () => closeGuide(true));
+})();
 </script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

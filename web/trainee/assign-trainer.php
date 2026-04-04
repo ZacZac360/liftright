@@ -223,10 +223,13 @@ require __DIR__ . '/../includes/head.php';
 <div class="row mb-4 align-items-center">
   <div class="col-md-8">
     <div class="lr-section-title mb-1">Coach Link</div>
-    <h1 class="lr-section-heading mb-1">Trainer Directory</h1>
+    <h1 class="lr-section-heading mb-1">Request a Trainer</h1>
     <p class="lr-stat-subtext mb-0">
-      Discover trainers by experience, specialization, and rating.
+      Browse available trainers and send a request for session review support.
     </p>
+  </div>
+  <div class="col-md-4 text-md-end mt-3 mt-md-0">
+    <button type="button" id="btnPageGuide" class="btn btn-outline-light">? Guide</button>
   </div>
 </div>
 
@@ -411,5 +414,78 @@ require __DIR__ . '/../includes/head.php';
 
 </div>
 </div>
+
+<div class="lr-modal-backdrop" id="pageGuideBackdrop" style="display:none;"></div>
+<div class="lr-modal" id="pageGuideModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pageGuideTitle">
+  <div class="lr-modal-card">
+    <div class="lr-modal-head">
+      <div>
+        <div class="lr-section-title mb-1">Page Guide</div>
+        <div class="lr-section-heading mb-0" id="pageGuideTitle">How to request a trainer</div>
+      </div>
+      <button class="btn btn-outline-light btn-sm" id="btnClosePageGuide" type="button">Close</button>
+    </div>
+
+    <div class="lr-modal-body">
+      <div class="d-grid gap-3">
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Browse trainers</div>
+          <p class="lr-step-text mb-0">
+            Use the filters to find trainers by qualification, rating, or specialization.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Send a request</div>
+          <p class="lr-step-text mb-0">
+            Press <strong>Request Trainer</strong> on a trainer card to send a request for support.
+          </p>
+        </div>
+
+        <div class="lr-step-card">
+          <div class="lr-step-kicker">Track your request</div>
+          <p class="lr-step-text mb-0">
+            If a request is pending or accepted, this page will show your current trainer status.
+          </p>
+        </div>
+
+        <div class="d-flex justify-content-end">
+          <button type="button" class="btn btn-primary" id="btnDonePageGuide">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const guideKey = 'lr_guide_request_trainer_seen';
+  const modal = document.getElementById('pageGuideModal');
+  const backdrop = document.getElementById('pageGuideBackdrop');
+  const btnOpen = document.getElementById('btnPageGuide');
+  const btnClose = document.getElementById('btnClosePageGuide');
+  const btnDone = document.getElementById('btnDonePageGuide');
+
+  function openGuide() {
+    modal.style.display = 'flex';
+    backdrop.style.display = 'block';
+    document.body.classList.add('lr-modal-open');
+  }
+
+  function closeGuide(markSeen = false) {
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+    document.body.classList.remove('lr-modal-open');
+    if (markSeen) localStorage.setItem(guideKey, '1');
+  }
+
+  if (!localStorage.getItem(guideKey)) openGuide();
+
+  btnOpen?.addEventListener('click', openGuide);
+  btnClose?.addEventListener('click', () => closeGuide(true));
+  btnDone?.addEventListener('click', () => closeGuide(true));
+  backdrop?.addEventListener('click', () => closeGuide(true));
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>
