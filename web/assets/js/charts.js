@@ -10,21 +10,35 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       if (!data || !data.success || !Array.isArray(data.points)) return;
 
-      const labels = data.points.map(p => p.label);
+      const labels = data.points.map((p, i) => {
+        const shortLabel = String(p.label || "—");
+        const logId = Number(p.log_id || (i + 1));
+        return `${shortLabel} #${logId}`;
+      });
+
+      const fullLabels = data.points.map(p => String(p.full_label || p.label || "—"));
       const values = data.points.map(p => Number(p.pct || 0));
 
-      // optional: if you want to visually mark fatigue sessions later
-      // const fatigueFlags = data.points.map(p => Number(p.fatigue || 0));
+      const ctx = el.getContext("2d");
+      const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+      gradient.addColorStop(0, "rgba(79,157,252,0.35)");
+      gradient.addColorStop(1, "rgba(79,157,252,0.04)");
 
-      new Chart(el, {
+      if (window.lrTrendChart) {
+        window.lrTrendChart.destroy();
+      }
+
+      window.lrTrendChart = new Chart(el, {
         type: "line",
         data: {
           labels,
           datasets: [{
             label: "Form score (%)",
             data: values,
-            tension: 0.3,
-            fill: false,
+            tension: 0.35,
+            fill: true,
+            backgroundColor: gradient,
+            borderWidth: 2,
             pointRadius: 3,
             pointHoverRadius: 5
           }]
@@ -32,21 +46,37 @@ document.addEventListener("DOMContentLoaded", () => {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: "index"
+          },
           scales: {
             y: {
-              suggestedMin: 0,
-              suggestedMax: 100,
-              ticks: { callback: (v) => v + "%" }
+              min: 0,
+              max: 100,
+              ticks: {
+                callback: (v) => v + "%"
+              }
             }
           },
           plugins: {
-            legend: { display: true }
+            legend: { display: true },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const idx = items?.[0]?.dataIndex ?? 0;
+                  return fullLabels[idx] || "";
+                },
+                label: (ctx) => `Form score: ${ctx.parsed.y}%`
+              }
+            }
           }
         }
       });
 
     } catch (e) {
       // fail silently; dashboard still usable
+      console.error("Failed to load dashboard trend:", e);
     }
   }
 
