@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 31, 2026 at 12:12 PM
+-- Generation Time: Apr 06, 2026 at 05:22 AM
 -- Server version: 8.0.44
 -- PHP Version: 8.2.12
 
@@ -78,7 +78,15 @@ INSERT INTO `auth_audit_logs` (`event_id`, `user_id`, `event_type`, `ip_address`
 (14, 3, 'login_blocked', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"reason\": \"email_not_verified\"}', '2026-03-31 09:54:02'),
 (15, 3, 'email_verify_sent', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"mode\": \"existing_user\", \"email\": \"user@liftright.local\"}', '2026-03-31 09:54:03'),
 (16, 3, 'login_blocked', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"reason\": \"email_not_verified\"}', '2026-03-31 09:54:27'),
-(17, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-03-31 09:59:01');
+(17, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-03-31 09:59:01'),
+(18, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-04-01 05:31:43'),
+(19, 2, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"trainer\"}', '2026-04-01 06:29:25'),
+(20, NULL, 'login_fail', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"email\": \"crispino.zyrus@gmail.com\", \"reason\": \"user_not_found\"}', '2026-04-01 06:29:32'),
+(21, NULL, 'login_fail', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"email\": \"crispino.zyrus@gmail.com\", \"reason\": \"user_not_found\"}', '2026-04-01 06:29:46'),
+(22, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-04-01 06:30:08'),
+(23, 2, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"trainer\"}', '2026-04-01 06:30:17'),
+(24, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-04-01 06:54:21'),
+(25, 3, 'login_success', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/128.0.0.0', '{\"role\": \"user\"}', '2026-04-04 03:44:23');
 
 -- --------------------------------------------------------
 
@@ -483,7 +491,15 @@ INSERT INTO `feedback` (`feedback_id`, `log_id`, `feedback_type`, `severity`, `f
 (260, 163, 'posture', 'warning', 'Keep elbow steadier (right)', '2026-03-18 09:52:02', '{\"all\": [\"Keep elbow steadier (right)\"], \"rep\": 2}'),
 (261, 163, 'posture', 'warning', 'Consistency drifting (ML)', '2026-03-18 09:52:02', '{\"all\": [\"Consistency drifting (ML)\"], \"rep\": 3}'),
 (262, 163, 'posture', 'danger', 'Elbow drifting a lot (right)', '2026-03-18 09:52:02', '{\"all\": [\"Elbow drifting a lot (right)\", \"Keep elbows steadier (both)\"], \"rep\": 6}'),
-(263, 163, 'posture', 'warning', 'Keep elbow steadier (right)', '2026-03-18 09:52:02', '{\"all\": [\"Keep elbow steadier (right)\"], \"rep\": 8}');
+(263, 163, 'posture', 'warning', 'Keep elbow steadier (right)', '2026-03-18 09:52:02', '{\"all\": [\"Keep elbow steadier (right)\"], \"rep\": 8}'),
+(264, 170, 'posture', 'warning', 'Consistency drifting (ML)', '2026-04-01 06:05:06', '{\"all\": [\"Consistency drifting (ML)\"], \"rep\": 3}'),
+(265, 172, 'posture', 'warning', 'Consistency drifting (ML)', '2026-04-01 06:11:23', '{\"all\": [\"Consistency drifting (ML)\"], \"rep\": 3}'),
+(266, 173, 'posture', 'warning', 'Consistency drifting (ML)', '2026-04-01 06:12:28', '{\"all\": [\"Consistency drifting (ML)\"], \"rep\": 3}'),
+(267, 174, 'posture', 'warning', 'Consistency drifting (ML)', '2026-04-01 06:28:12', '{\"all\": [\"Consistency drifting (ML)\"], \"rep\": 3}'),
+(268, 174, 'posture', 'warning', 'Keep elbow steadier (right)', '2026-04-01 06:28:12', '{\"all\": [\"Keep elbow steadier (right)\"], \"rep\": 7}'),
+(269, 174, 'posture', 'warning', 'Keep elbows steadier (both)', '2026-04-01 06:28:12', '{\"all\": [\"Keep elbows steadier (both)\"], \"rep\": 8}'),
+(270, 174, 'posture', 'danger', 'Elbow drifting a lot (right)', '2026-04-01 06:28:12', '{\"all\": [\"Elbow drifting a lot (right)\", \"Keep elbows steadier (both)\"], \"rep\": 9}'),
+(271, 174, 'posture', 'danger', 'Elbow drifting a lot (both)', '2026-04-01 06:28:12', '{\"all\": [\"Elbow drifting a lot (both)\", \"Keep elbows steadier (both)\"], \"rep\": 10}');
 
 -- --------------------------------------------------------
 
@@ -604,7 +620,9 @@ INSERT INTO `notifications` (`notif_id`, `user_id`, `notif_type`, `message`, `lo
 (54, 3, 'review_posted', 'Your session #162 has been reviewed by your trainer.', 162, 2, 1, '2026-03-18 09:46:04'),
 (55, 1, 'system', 'Unlink requested: Test Trainee User1 (#3) from LiftRight Trainer (#2).', NULL, 3, 1, '2026-03-18 09:47:15'),
 (56, 3, 'system', 'Your trainer unlink request has been approved.', NULL, 1, 1, '2026-03-18 09:47:51'),
-(57, 10, 'system', 'Your LiftRight account has been approved.', NULL, 1, 0, '2026-03-31 09:36:27');
+(57, 10, 'system', 'Your LiftRight account has been approved.', NULL, 1, 0, '2026-03-31 09:36:27'),
+(58, 3, 'assignment', 'Trainer accepted your request. You are now linked.', NULL, 2, 1, '2026-04-01 06:30:19'),
+(59, 3, 'assignment', 'Trainer accepted your request. You are now linked.', NULL, 2, 1, '2026-04-01 06:30:19');
 
 -- --------------------------------------------------------
 
@@ -1196,7 +1214,86 @@ INSERT INTO `rep_metrics` (`rep_id`, `log_id`, `rep_index`, `duration_ms`, `rom_
 (482, 163, 6, 3302, 171.314, 0, 0.950283, 'bad', -0.332982, '2026-03-18 09:52:02', '{\"reasons\": [\"Elbow drifting a lot (right)\", \"Keep elbows steadier (both)\"], \"label_ui\": \"bad\", \"is_warning\": false, \"rep_bad_seen\": true, \"rep_tip_seen\": true, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.6893754601478577}'),
 (483, 163, 7, 2265, 162.481, 0, 0.946408, 'good', -0.0687581, '2026-03-18 09:52:02', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 4.855434894561768, \"elbow_drift_absmax\": 0.34436333179473877}'),
 (484, 163, 8, 1684, 165.21, 0, 0.94937, 'good', -0.059223, '2026-03-18 09:52:02', '{\"reasons\": [\"Keep elbow steadier (right)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": true, \"fatigue_index\": 7.895636558532715, \"elbow_drift_absmax\": 0.3696983456611634}'),
-(485, 163, 9, 2432, 172.955, 0, 0.955967, 'good', -0.154855, '2026-03-18 09:52:02', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 4.855434894561768, \"elbow_drift_absmax\": 0.2263495028018951}');
+(485, 163, 9, 2432, 172.955, 0, 0.955967, 'good', -0.154855, '2026-03-18 09:52:02', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 4.855434894561768, \"elbow_drift_absmax\": 0.2263495028018951}'),
+(486, 170, 1, 3434, 170.192, 0, 0.99443, 'good', -0.273153, '2026-04-01 06:05:06', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.19102582335472107}'),
+(487, 170, 2, 2638, 163.009, 0, 0.991371, 'good', -0.105087, '2026-04-01 06:05:06', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.16805943846702576}'),
+(488, 170, 3, 2669, 168.451, 0, 0.986141, 'good', -0.143927, '2026-04-01 06:05:06', '{\"reasons\": [\"Consistency drifting (ML)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.17469161748886108}'),
+(489, 172, 1, 1030, 0.524995, 0.130173, 0.923894, 'good', -0.507262, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [], \"label_ui\": \"good\", \"elbow_min\": 158.16671752929688, \"is_warning\": false, \"fatigue_index\": 0}'),
+(490, 172, 2, 798, 0.544412, 0.115883, 0.931526, 'good', -0.506815, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [], \"label_ui\": \"good\", \"elbow_min\": 160.5016632080078, \"is_warning\": false, \"fatigue_index\": 0}'),
+(491, 172, 3, 1118, 0.755417, 0.136882, 0.93025, 'good', -0.507284, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [\"Consistency drifting (ML)\"], \"label_ui\": \"warning\", \"elbow_min\": 155.9709930419922, \"is_warning\": true, \"fatigue_index\": 0}'),
+(492, 172, 4, 981, 0.751395, 0.133373, 0.943585, 'good', -0.507289, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [], \"label_ui\": \"good\", \"elbow_min\": 162.0985107421875, \"is_warning\": false, \"fatigue_index\": 0}'),
+(493, 172, 5, 986, 0.639396, 0.119892, 0.947815, 'good', -0.507007, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [], \"label_ui\": \"good\", \"elbow_min\": 157.4168701171875, \"is_warning\": false, \"fatigue_index\": 0.8998168945312499}'),
+(494, 172, 6, 961, 0.862584, 0.121655, 0.938403, 'good', -0.507088, '2026-04-01 06:11:23', '{\"arm\": \"L\", \"reasons\": [], \"label_ui\": \"good\", \"elbow_min\": 158.78216552734375, \"is_warning\": false, \"fatigue_index\": 0}'),
+(495, 173, 1, 3747, 175.193, 0, 0.970189, 'good', -0.378966, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.49242761731147766}'),
+(496, 173, 2, 3478, 165.466, 0, 0.966335, 'good', -0.254505, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.2174871414899826}'),
+(497, 173, 3, 3251, 163.353, 0, 0.974803, 'good', -0.203621, '2026-04-01 06:12:28', '{\"reasons\": [\"Consistency drifting (ML)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.19083000719547272}'),
+(498, 173, 4, 2936, 165.032, 0, 0.973761, 'good', -0.159964, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.16156578063964844}'),
+(499, 173, 5, 3077, 162.012, 0, 0.971843, 'good', -0.168022, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.1587398499250412}'),
+(500, 173, 6, 3655, 164.5, 0, 0.979367, 'good', -0.282569, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.17707963287830353}'),
+(501, 173, 7, 3902, 165.839, 0, 0.978732, 'good', -0.333331, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.18880023062229156}'),
+(502, 173, 8, 3481, 162.108, 0, 0.973304, 'good', -0.241044, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.1616682410240173}'),
+(503, 173, 9, 2828, 165.78, 0, 0.969085, 'good', -0.148695, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.14528551697731018}'),
+(504, 173, 10, 3371, 170.779, 0, 0.979955, 'good', -0.266403, '2026-04-01 06:12:28', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.1875794231891632}'),
+(505, 174, 1, 3190, 171.251, 0, 0.994299, 'good', -0.240323, '2026-04-01 06:28:12', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.20234476029872897}'),
+(506, 174, 2, 2785, 172.172, 0, 0.995181, 'good', -0.188763, '2026-04-01 06:28:12', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.1719403862953186}'),
+(507, 174, 3, 2866, 170.813, 0, 0.994559, 'good', -0.188896, '2026-04-01 06:28:12', '{\"reasons\": [\"Consistency drifting (ML)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.16317218542099}'),
+(508, 174, 4, 2745, 171.873, 0, 0.99409, 'good', -0.182619, '2026-04-01 06:28:12', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.1321955919265747}'),
+(509, 174, 5, 2935, 167.251, 0, 0.991924, 'good', -0.174549, '2026-04-01 06:28:12', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.13630768656730652}'),
+(510, 174, 6, 2785, 170.051, 0, 0.98998, 'good', -0.173245, '2026-04-01 06:28:12', '{\"reasons\": [], \"label_ui\": \"good\", \"is_warning\": false, \"rep_bad_seen\": false, \"rep_tip_seen\": false, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.13161221146583557}'),
+(511, 174, 7, 3066, 162.759, 0, 0.993996, 'good', -0.181167, '2026-04-01 06:28:12', '{\"reasons\": [\"Keep elbow steadier (right)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": true, \"fatigue_index\": 0, \"elbow_drift_absmax\": 0.3761248290538788}'),
+(512, 174, 8, 2258, 150.247, 0, 0.991273, 'good', -0.0617287, '2026-04-01 06:28:12', '{\"reasons\": [\"Keep elbows steadier (both)\"], \"label_ui\": \"warning\", \"is_warning\": true, \"rep_bad_seen\": false, \"rep_tip_seen\": true, \"fatigue_index\": 25.554317235946655, \"elbow_drift_absmax\": 0.4489337205886841}'),
+(513, 174, 9, 2701, 154.688, 0, 0.991958, 'bad', -0.192621, '2026-04-01 06:28:12', '{\"reasons\": [\"Elbow drifting a lot (right)\", \"Keep elbows steadier (both)\"], \"label_ui\": \"bad\", \"is_warning\": false, \"rep_bad_seen\": true, \"rep_tip_seen\": true, \"fatigue_index\": 30, \"elbow_drift_absmax\": 0.7}'),
+(514, 174, 10, 2385, 145.393, 0, 0.990409, 'bad', -0.162061, '2026-04-01 06:28:12', '{\"reasons\": [\"Elbow drifting a lot (both)\", \"Keep elbows steadier (both)\"], \"label_ui\": \"bad\", \"is_warning\": false, \"rep_bad_seen\": true, \"rep_tip_seen\": true, \"fatigue_index\": 30, \"elbow_drift_absmax\": 0.6858193278312683}');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `rep_snapshots`
+--
+
+CREATE TABLE `rep_snapshots` (
+  `snapshot_id` bigint NOT NULL,
+  `log_id` bigint NOT NULL,
+  `rep_index` int NOT NULL,
+  `image_path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `captured_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `rep_snapshots`
+--
+
+INSERT INTO `rep_snapshots` (`snapshot_id`, `log_id`, `rep_index`, `image_path`, `captured_at`) VALUES
+(1, 170, 1, 'uploads/rep_snapshots/log_170/rep_1.jpg', '2026-04-01 06:04:54'),
+(2, 170, 2, 'uploads/rep_snapshots/log_170/rep_2.jpg', '2026-04-01 06:04:56'),
+(3, 170, 3, 'uploads/rep_snapshots/log_170/rep_3.jpg', '2026-04-01 06:04:59'),
+(4, 172, 1, 'uploads/rep_snapshots/log_172/rep_1.jpg', '2026-04-01 06:11:03'),
+(5, 172, 2, 'uploads/rep_snapshots/log_172/rep_2.jpg', '2026-04-01 06:11:06'),
+(6, 172, 3, 'uploads/rep_snapshots/log_172/rep_3.jpg', '2026-04-01 06:11:09'),
+(7, 172, 4, 'uploads/rep_snapshots/log_172/rep_4.jpg', '2026-04-01 06:11:13'),
+(8, 172, 5, 'uploads/rep_snapshots/log_172/rep_5.jpg', '2026-04-01 06:11:16'),
+(9, 172, 6, 'uploads/rep_snapshots/log_172/rep_6.jpg', '2026-04-01 06:11:19'),
+(10, 173, 1, 'uploads/rep_snapshots/log_173/rep_1.jpg', '2026-04-01 06:11:54'),
+(11, 173, 2, 'uploads/rep_snapshots/log_173/rep_2.jpg', '2026-04-01 06:11:58'),
+(12, 173, 3, 'uploads/rep_snapshots/log_173/rep_3.jpg', '2026-04-01 06:12:01'),
+(13, 173, 4, 'uploads/rep_snapshots/log_173/rep_4.jpg', '2026-04-01 06:12:04'),
+(14, 173, 5, 'uploads/rep_snapshots/log_173/rep_5.jpg', '2026-04-01 06:12:07'),
+(15, 173, 6, 'uploads/rep_snapshots/log_173/rep_6.jpg', '2026-04-01 06:12:11'),
+(16, 173, 7, 'uploads/rep_snapshots/log_173/rep_7.jpg', '2026-04-01 06:12:15'),
+(17, 173, 8, 'uploads/rep_snapshots/log_173/rep_8.jpg', '2026-04-01 06:12:18'),
+(18, 173, 9, 'uploads/rep_snapshots/log_173/rep_9.jpg', '2026-04-01 06:12:21'),
+(19, 173, 10, 'uploads/rep_snapshots/log_173/rep_10.jpg', '2026-04-01 06:12:24'),
+(20, 174, 1, 'uploads/rep_snapshots/log_174/rep_1.jpg', '2026-04-01 06:27:44'),
+(21, 174, 2, 'uploads/rep_snapshots/log_174/rep_2.jpg', '2026-04-01 06:27:47'),
+(22, 174, 3, 'uploads/rep_snapshots/log_174/rep_3.jpg', '2026-04-01 06:27:49'),
+(23, 174, 4, 'uploads/rep_snapshots/log_174/rep_4.jpg', '2026-04-01 06:27:52'),
+(24, 174, 5, 'uploads/rep_snapshots/log_174/rep_5.jpg', '2026-04-01 06:27:55'),
+(25, 174, 6, 'uploads/rep_snapshots/log_174/rep_6.jpg', '2026-04-01 06:27:58'),
+(26, 174, 7, 'uploads/rep_snapshots/log_174/rep_7.jpg', '2026-04-01 06:28:01'),
+(28, 174, 8, 'uploads/rep_snapshots/log_174/rep_8.jpg', '2026-04-01 06:28:04'),
+(29, 174, 9, 'uploads/rep_snapshots/log_174/rep_9.jpg', '2026-04-01 06:28:06'),
+(32, 174, 10, 'uploads/rep_snapshots/log_174/rep_10.jpg', '2026-04-01 06:28:09'),
+(34, 174, 11, 'uploads/rep_snapshots/log_174/rep_11.jpg', '2026-04-01 06:28:11');
 
 -- --------------------------------------------------------
 
@@ -1265,7 +1362,8 @@ CREATE TABLE `trainer_invites` (
 --
 
 INSERT INTO `trainer_invites` (`invite_id`, `trainee_id`, `trainer_id`, `status`, `token`, `expires_at`, `created_at`, `responded_at`) VALUES
-(9, 3, 2, 'cancelled', 'dde00d5d0dbfe7c9e6f4117e0586f606d7198ae499c6774a76b57f69cc5df824', '2026-03-25 09:44:27', '2026-03-18 09:44:27', '2026-03-18 09:47:51');
+(9, 3, 2, 'cancelled', 'dde00d5d0dbfe7c9e6f4117e0586f606d7198ae499c6774a76b57f69cc5df824', '2026-03-25 09:44:27', '2026-03-18 09:44:27', '2026-03-18 09:47:51'),
+(10, 3, 2, 'accepted', '8706c4857a38d6c14e2d788d55b7e029b80f1abe17e2d7c31ee6db6c6bf71c86', '2026-04-08 06:30:11', '2026-04-01 06:30:11', '2026-04-01 06:30:19');
 
 -- --------------------------------------------------------
 
@@ -1533,7 +1631,18 @@ INSERT INTO `training_logs` (`log_id`, `user_id`, `exercise_type`, `source_type`
 (160, 3, 'bicep_curl', 'webcam', NULL, NULL, 4, 4, 0, 0, 0, '2026-02-27 10:49:30', '2026-02-27 10:49:45', 5, '2026-02-27 10:49:30'),
 (161, 3, 'bicep_curl', 'webcam', NULL, NULL, 10, 8, 2, 2, 0, '2026-02-27 11:44:32', '2026-02-27 11:44:57', 8, '2026-02-27 11:44:32'),
 (162, 3, 'bicep_curl', 'webcam', NULL, NULL, 5, 5, 0, 0, 0, '2026-03-18 09:43:27', '2026-03-18 09:43:49', 17, '2026-03-18 09:43:27'),
-(163, 3, 'bicep_curl', 'webcam', NULL, NULL, 9, 8, 1, 1, 0, '2026-03-18 09:51:33', '2026-03-18 09:52:02', 6, '2026-03-18 09:51:33');
+(163, 3, 'bicep_curl', 'webcam', NULL, NULL, 9, 8, 1, 1, 0, '2026-03-18 09:51:33', '2026-03-18 09:52:02', 6, '2026-03-18 09:51:33'),
+(164, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 05:55:35', NULL, NULL, '2026-04-01 05:55:35'),
+(165, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 05:55:53', NULL, NULL, '2026-04-01 05:55:53'),
+(166, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 05:56:10', NULL, NULL, '2026-04-01 05:56:10'),
+(167, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 05:59:01', NULL, NULL, '2026-04-01 05:59:01'),
+(168, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 05:59:55', NULL, NULL, '2026-04-01 05:59:55'),
+(169, 3, 'shoulder_press', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 06:01:34', NULL, NULL, '2026-04-01 06:01:34'),
+(170, 3, 'bicep_curl', 'webcam', NULL, NULL, 3, 3, 0, 0, 0, '2026-04-01 06:04:50', '2026-04-01 06:05:06', 19, '2026-04-01 06:04:50'),
+(171, 3, 'bicep_curl', 'webcam', NULL, NULL, 0, 0, 0, 0, 0, '2026-04-01 06:09:29', NULL, NULL, '2026-04-01 06:09:29'),
+(172, 3, 'lateral_raise', 'webcam', NULL, NULL, 6, 6, 0, 0, 0, '2026-04-01 06:10:52', '2026-04-01 06:11:23', 6, '2026-04-01 06:10:52'),
+(173, 3, 'bicep_curl', 'webcam', NULL, NULL, 10, 10, 0, 0, 0, '2026-04-01 06:11:50', '2026-04-01 06:12:28', 8, '2026-04-01 06:11:50'),
+(174, 3, 'bicep_curl', 'webcam', NULL, NULL, 10, 8, 2, 2, 0, '2026-04-01 06:27:42', '2026-04-01 06:28:12', 9, '2026-04-01 06:27:42');
 
 -- --------------------------------------------------------
 
@@ -1574,8 +1683,8 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `full_name`, `email`, `password_hash`, `role`, `age`, `birthdate`, `gender`, `bio`, `profile_photo`, `qualification`, `years_experience`, `specializations`, `accepting_trainees`, `created_at`, `last_login`, `trainer_id`, `account_status`, `twofa_enabled`, `failed_login_attempts`, `lock_until`, `last_failed_login`, `email_verified_at`, `theme`) VALUES
 (1, 'LiftRight Admin', 'admin@liftright.local', '$2y$10$lFD.vTC26SMwnPRhRyWsnuf.zQwDEiGkIJcNTrZN4EQb2y.VJoUJe', 'admin', 24, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-12-16 15:18:20', '2026-03-31 09:36:05', NULL, 'approved', 0, 0, NULL, NULL, '2026-02-24 16:40:02', 'default'),
-(2, 'LiftRight Trainer', 'trainer@liftright.local', '$2y$10$lFD.vTC26SMwnPRhRyWsnuf.zQwDEiGkIJcNTrZN4EQb2y.VJoUJe', 'trainer', 26, NULL, NULL, 'wasdasdadsas', 'uploads/profile_photos/user_2.jpg', '312das', 3, '[\"sdasdasdsada\"]', 1, '2025-12-16 15:18:20', '2026-03-18 09:49:20', NULL, 'approved', 0, 0, NULL, NULL, '2026-02-24 16:40:02', 'default'),
-(3, 'Test Trainee User1', 'user@liftright.local', '$2y$10$lFD.vTC26SMwnPRhRyWsnuf.zQwDEiGkIJcNTrZN4EQb2y.VJoUJe', 'user', 21, '2003-11-14', 'male', 'Test Traineeeeeeee', 'uploads/profile_photos/user_3.png', NULL, NULL, NULL, 1, '2025-12-16 15:18:20', '2026-03-31 09:59:01', NULL, 'approved', 0, 0, NULL, NULL, '2026-02-24 16:40:02', 'default'),
+(2, 'LiftRight Trainer', 'trainer@liftright.local', '$2y$10$lFD.vTC26SMwnPRhRyWsnuf.zQwDEiGkIJcNTrZN4EQb2y.VJoUJe', 'trainer', 26, NULL, NULL, 'wasdasdadsas', 'uploads/profile_photos/user_2.jpg', '312das', 3, '[\"sdasdasdsada\"]', 1, '2025-12-16 15:18:20', '2026-04-01 06:30:17', NULL, 'approved', 0, 0, NULL, NULL, '2026-02-24 16:40:02', 'default'),
+(3, 'Test Trainee User1', 'user@liftright.local', '$2y$10$lFD.vTC26SMwnPRhRyWsnuf.zQwDEiGkIJcNTrZN4EQb2y.VJoUJe', 'user', 21, '2003-11-14', 'male', 'Test Traineeeeeeee', 'uploads/profile_photos/user_3.png', NULL, NULL, NULL, 1, '2025-12-16 15:18:20', '2026-04-04 03:44:23', 2, 'approved', 0, 0, NULL, NULL, '2026-02-24 16:40:02', 'default'),
 (10, 'Test', 'zacgames.tv@gmail.com', '$2y$10$Wwem4iJxiP2OKtyqbb7u.OUpGg7awdcz16QzH/Oe6tLQ/PCUeYG4m', 'user', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-03-31 09:27:19', NULL, NULL, 'approved', 0, 0, NULL, NULL, '2026-03-31 17:27:19', 'default');
 
 --
@@ -1689,6 +1798,14 @@ ALTER TABLE `rep_metrics`
   ADD KEY `idx_rep_log` (`log_id`);
 
 --
+-- Indexes for table `rep_snapshots`
+--
+ALTER TABLE `rep_snapshots`
+  ADD PRIMARY KEY (`snapshot_id`),
+  ADD UNIQUE KEY `uq_rep_snapshot` (`log_id`,`rep_index`),
+  ADD KEY `idx_rep_snapshot_log` (`log_id`);
+
+--
 -- Indexes for table `sus_responses`
 --
 ALTER TABLE `sus_responses`
@@ -1768,7 +1885,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `auth_audit_logs`
 --
 ALTER TABLE `auth_audit_logs`
-  MODIFY `event_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `event_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `email_verifications`
@@ -1792,7 +1909,7 @@ ALTER TABLE `expert_reviews`
 -- AUTO_INCREMENT for table `feedback`
 --
 ALTER TABLE `feedback`
-  MODIFY `feedback_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=264;
+  MODIFY `feedback_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=272;
 
 --
 -- AUTO_INCREMENT for table `login_otps`
@@ -1810,7 +1927,7 @@ ALTER TABLE `messages`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `notif_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
+  MODIFY `notif_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=60;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
@@ -1834,7 +1951,13 @@ ALTER TABLE `profile_change_requests`
 -- AUTO_INCREMENT for table `rep_metrics`
 --
 ALTER TABLE `rep_metrics`
-  MODIFY `rep_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=486;
+  MODIFY `rep_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=515;
+
+--
+-- AUTO_INCREMENT for table `rep_snapshots`
+--
+ALTER TABLE `rep_snapshots`
+  MODIFY `snapshot_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `sus_responses`
@@ -1852,7 +1975,7 @@ ALTER TABLE `trainer_applications`
 -- AUTO_INCREMENT for table `trainer_invites`
 --
 ALTER TABLE `trainer_invites`
-  MODIFY `invite_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `invite_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `trainer_reviews`
@@ -1870,7 +1993,7 @@ ALTER TABLE `trainer_review_flags`
 -- AUTO_INCREMENT for table `training_logs`
 --
 ALTER TABLE `training_logs`
-  MODIFY `log_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=164;
+  MODIFY `log_id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=175;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1947,6 +2070,12 @@ ALTER TABLE `profile_change_requests`
 --
 ALTER TABLE `rep_metrics`
   ADD CONSTRAINT `fk_rep_log` FOREIGN KEY (`log_id`) REFERENCES `training_logs` (`log_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `rep_snapshots`
+--
+ALTER TABLE `rep_snapshots`
+  ADD CONSTRAINT `fk_rep_snapshot_log` FOREIGN KEY (`log_id`) REFERENCES `training_logs` (`log_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `sus_responses`

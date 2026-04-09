@@ -2047,6 +2047,8 @@ def start(req: StartReq):
 
 @app.post("/frame")
 def frame(req: FrameReq):
+    frame_t0 = time.perf_counter()
+
     token = (req.session_token or "").strip()
     sess = SESSIONS.get(token)
     if not sess:
@@ -2065,7 +2067,17 @@ def frame(req: FrameReq):
     else:
         annotated, status = PIPE_LR.process(img, sess)
 
-    return {"annotated_frame_dataurl": bgr_to_dataurl_jpeg(annotated, quality=80), "status": status}
+    frame_t1 = time.perf_counter()
+    ml_processing_ms = (frame_t1 - frame_t0) * 1000.0
+
+    status["ml_processing_ms"] = ml_processing_ms
+
+    print(f"[LiftRight Metrics] /frame ML processing: {ml_processing_ms:.2f} ms")
+
+    return {
+        "annotated_frame_dataurl": bgr_to_dataurl_jpeg(annotated, quality=80),
+        "status": status
+    }
 
 @app.post("/finish")
 def finish(req: FinishReq):

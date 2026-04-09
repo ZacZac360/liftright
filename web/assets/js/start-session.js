@@ -82,6 +82,25 @@
   let prevPhaseRaw = "";
   const repScreenshotPriority = new Map(); // rep_index -> 0 good, 1 warning, 2 unsafe
 
+    /* =========================
+     PERFORMANCE METRICS
+  ========================= */
+  let perfFrameCount = 0;
+  let perfLastFpsTime = performance.now();
+  let perfResponseSamples = [];
+  let perfMlSamples = [];
+
+  /* =========================
+     PERFORMANCE TUNING
+  ========================= */
+  const TARGET_PROCESS_FPS = 6;          // try 6 first
+  const FRAME_INTERVAL_MS = Math.round(1000 / TARGET_PROCESS_FPS);
+  const FRAME_JPEG_QUALITY = 0.42;       // was 0.5
+  let lastTickAt = 0;
+
+  let screenshotBusy = false;
+  const screenshotQueue = [];
+
 /* =========================
    SFX SYSTEM
 ========================= */
@@ -240,7 +259,13 @@ const DANGER_COOLDOWN_MS = 1200;
     video.srcObject = stream;
     await video.play();
     syncCanvasToVideo();
-    video.onloadedmetadata = () => syncCanvasToVideo();
+
+    console.log("[LiftRight Metrics] Camera resolution:", video.videoWidth, "x", video.videoHeight);
+
+    video.onloadedmetadata = () => {
+      syncCanvasToVideo();
+      console.log("[LiftRight Metrics] Camera resolution:", video.videoWidth, "x", video.videoHeight);
+    };
   }
 
   function stopCamera() {
@@ -630,14 +655,35 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
 
     inflight = true;
     try {
+      perfFrameCount++;
+      const fpsNow = performance.now();
+      if (fpsNow - perfLastFpsTime >= 1000) {
+        console.log("[LiftRight Metrics] FPS:", perfFrameCount);
+        perfFrameCount = 0;
+        perfLastFpsTime = fpsNow;
+      }
+
       capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
       const frameDataUrl = await canvasToJpegBase64(captureCanvas, 0.5);
+
+      const requestStart = performance.now();
 
       const resp = await api("frame", {
         log_id: logId,
         session_token: sessionToken,
         frame_dataurl: frameDataUrl,
       });
+
+      const requestEnd = performance.now();
+      const responseMs = requestEnd - requestStart;
+      perfResponseSamples.push(responseMs);
+
+      console.log("[LiftRight Metrics] Response time (frame loop):", responseMs.toFixed(2), "ms");
+
+      if (resp.status && typeof resp.status.ml_processing_ms === "number") {
+        perfMlSamples.push(resp.status.ml_processing_ms);
+        console.log("[LiftRight Metrics] ML processing delay:", resp.status.ml_processing_ms.toFixed(2), "ms");
+      }
 
       const annotated = resp.annotated_frame_dataurl;
       const status = resp.status || {};
@@ -884,9 +930,24 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
             Proper form demo
             </div>
 
-            <img src="${gifPath}"
-                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-                style="max-width:100%; border-radius:12px;" />
+            <div style="
+              width: 100%;
+              height: 300px;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              overflow: hidden;
+              border-radius: 12px;
+              background: rgba(0,0,0,0.2);
+            ">
+              <img src="${gifPath}"
+                  onerror="this.style.display='none'; this.parentElement.nextElementSibling.style.display='block';"
+                  style="
+                    max-height: 100%;
+                    max-width: 100%;
+                    object-fit: contain;
+                  " />
+            </div>
 
             <div style="display:none; opacity:.8; margin-top:10px;">
             No ${ex}.gif detected.

@@ -93,12 +93,9 @@ These affect demo + thesis perception immediately.
 
 ---
 
-# 🧑‍🏫 PHASE 5 — SYSTEM LOGIC IMPROVEMENT
+# 🧑‍🏫 PHASE 5
 
-23. Trainer request system (replace assign)
-24. Clean role flows (trainee ↔ coach)
-
----
+Onboarding guide. Scripted tour of interface upon first login?
 
 # 🌐 PHASE 6 — PLATFORM / DEPLOYMENT
 

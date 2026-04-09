@@ -9,6 +9,7 @@ global $BASE_URL;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= h($page_title) ?></title>
+  <link rel="icon" type="image/x-icon" href="/liftright/web/favicon.ico">
 
   <!-- Let JS read BASE_URL safely -->
   <meta name="lr-base-url" content="<?= h($BASE_URL) ?>">

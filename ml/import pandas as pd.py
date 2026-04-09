@@ -1,38 +1,49 @@
+import pandas as pd
 import joblib
 from pathlib import Path
+import matplotlib.pyplot as plt
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-MODEL_DIR = SCRIPT_DIR / "models"
+ROOT = Path(r"C:\xampp\htdocs\liftright\ml")
 
-FILES = [
-    "bicep_curl_ocsvm.pkl",
-    "lateral_raise_ocsvm.pkl",
-    "shoulder_press_ocsvm.pkl",
-]
+MODELS = {
+    "Bicep Curl": ROOT / "models" / "bicep_curl_ocsvm.pkl",
+    "Lateral Raise": ROOT / "models" / "lateral_raise_ocsvm.pkl",
+    "Shoulder Press": ROOT / "models" / "shoulder_press_ocsvm.pkl",
+}
 
-def inspect_model(model_path: Path):
-    if not model_path.exists():
-        print("=" * 60)
-        print("Missing file:", model_path)
-        return
+DATASETS = {
+    "Bicep Curl": ROOT / "datasets" / "reps" / "bicep_curl_reps.csv",
+    "Lateral Raise": ROOT / "datasets" / "reps" / "lateral_raise_reps.csv",
+    "Shoulder Press": ROOT / "datasets" / "reps" / "shoulder_press_reps.csv",
+}
 
-    bundle = joblib.load(model_path)
+fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True)
 
-    print("=" * 60)
-    print("File:", model_path.name)
-    print("Full path:", model_path)
-    print("Exercise:", bundle.get("exercise"))
-    print("Features:", bundle.get("features"))
-    print("NU:", bundle.get("nu"))
-    print("Threshold percentile:", bundle.get("threshold_pct"))
-    print("Threshold:", bundle.get("threshold"))
+for ax, name in zip(axes, MODELS.keys()):
+    bundle = joblib.load(MODELS[name])
+    df = pd.read_csv(DATASETS[name])
 
-def main():
-    print("Script folder:", SCRIPT_DIR)
-    print("Model folder :", MODEL_DIR)
+    feat_cols = bundle["features"]
+    X = df[feat_cols].dropna().copy()
+    Xs = bundle["scaler"].transform(X.values)
+    scores = bundle["model"].decision_function(Xs).ravel()
+    threshold = bundle["threshold"]
 
-    for name in FILES:
-        inspect_model(MODEL_DIR / name)
+    ax.hist(scores, bins=10, edgecolor="black")
+    ax.axvline(threshold, linestyle="--", linewidth=1.5)
+    ax.set_title(name)
+    ax.set_xlabel("Decision Score")
+    ax.text(
+        0.98, 0.95,
+        f"n={len(scores)}\nthreshold={threshold:.4f}",
+        transform=ax.transAxes,
+        ha="right", va="top",
+        fontsize=9,
+        bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.8)
+    )
 
-if __name__ == "__main__":
-    main()
+axes[0].set_ylabel("Frequency")
+fig.suptitle("Histogram of Decision Scores for Each Exercise Model", fontsize=14)
+plt.tight_layout()
+plt.savefig("decision_score_histograms_clean.png", dpi=300, bbox_inches="tight")
+plt.show()

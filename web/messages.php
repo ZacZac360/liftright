@@ -20,7 +20,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all_read'])) {
   exit;
 }
 
-// fetch inbox
+// pagination
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 10;
+$offset = ($page - 1) * $per_page;
+
+// total count
+$stmt = $mysqli->prepare("
+  SELECT COUNT(*) AS cnt
+  FROM messages
+  WHERE recipient_id = ?
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$total_rows = (int)($stmt->get_result()->fetch_assoc()['cnt'] ?? 0);
+$stmt->close();
+
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+
+// fetch inbox page
 $messages = [];
 $stmt = $mysqli->prepare("
   SELECT m.message_id, m.sender_id, u.full_name AS sender_name,
@@ -29,9 +49,9 @@ $stmt = $mysqli->prepare("
   JOIN users u ON u.user_id = m.sender_id
   WHERE m.recipient_id = ?
   ORDER BY m.created_at DESC
-  LIMIT 200
+  LIMIT ? OFFSET ?
 ");
-$stmt->bind_param("i", $user_id);
+$stmt->bind_param("iii", $user_id, $per_page, $offset);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) $messages[] = $row;
@@ -66,7 +86,7 @@ require __DIR__ . '/includes/head.php';
     <div class="lr-card">
       <div class="lr-card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+          <table class="table table-hover align-middle mb-0 table-lr-dark">
             <thead>
               <tr>
                 <th style="width: 30%;">From</th>
@@ -85,7 +105,10 @@ require __DIR__ . '/includes/head.php';
                   <?php
                     $isUnread = ((int)$m['is_read'] === 0);
                     $subject = trim((string)($m['subject'] ?? ''));
-                    $preview = $subject !== '' ? $subject : mb_substr(trim((string)$m['body']), 0, 70) . (mb_strlen(trim((string)$m['body'])) > 70 ? '…' : '');
+                    $bodyText = trim((string)($m['body'] ?? ''));
+                    $preview = $subject !== ''
+                      ? $subject
+                      : mb_substr($bodyText, 0, 70) . (mb_strlen($bodyText) > 70 ? '…' : '');
                   ?>
                   <tr>
                     <td>
@@ -112,6 +135,35 @@ require __DIR__ . '/includes/head.php';
             </tbody>
           </table>
         </div>
+
+        <?php if ($total_pages > 1): ?>
+          <div class="d-flex justify-content-between align-items-center p-3 flex-wrap gap-2">
+            <div class="lr-stat-subtext mb-0">
+              Showing <?= $total_rows === 0 ? 0 : ($offset + 1) ?>–<?= min($offset + $per_page, $total_rows) ?> of <?= $total_rows ?>
+            </div>
+
+            <nav aria-label="Messages pagination">
+              <ul class="pagination pagination-sm mb-0">
+                <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>">
+                  <a class="page-link" href="<?= $page <= 1 ? '#' : ($BASE_URL . '/messages.php?page=' . ($page - 1)) ?>">Prev</a>
+                </li>
+
+                <?php for ($p = 1; $p <= $total_pages; $p++): ?>
+                  <li class="page-item<?= ($p === $page) ? ' active' : '' ?>">
+                    <a class="page-link" href="<?= $BASE_URL . '/messages.php?page=' . $p ?>">
+                      <?= $p ?>
+                    </a>
+                  </li>
+                <?php endfor; ?>
+
+                <li class="page-item<?= $page >= $total_pages ? ' disabled' : '' ?>">
+                  <a class="page-link" href="<?= $page >= $total_pages ? '#' : ($BASE_URL . '/messages.php?page=' . ($page + 1)) ?>">Next</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        <?php endif; ?>
+
       </div>
     </div>
 

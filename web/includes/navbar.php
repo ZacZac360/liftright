@@ -235,9 +235,15 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
 ?>
 <nav class="navbar navbar-expand-lg fixed-top liftright-navbar">
   <div class="container">
-    <a class="navbar-brand d-flex flex-column" href="<?= $BASE_URL ?>/index.php">
-      <span class="brand-accent">LiftRight</span>
-      <span class="brand-subtitle">Real-time posture + fatigue insights</span>
+    <a class="navbar-brand d-flex align-items-center gap-2" href="<?= $BASE_URL ?>/index.php">
+      <img src="<?= $BASE_URL ?>/assets/images/logo/liftright-logo.png"
+            alt="LiftRight Logo"
+            class="lr-logo">
+
+      <div class="d-flex flex-column">
+        <span class="brand-accent">LiftRight</span>
+        <span class="brand-subtitle">Real-time posture + fatigue insights</span>
+      </div>
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#lrNav">
@@ -316,7 +322,6 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
               </a>
             </li>
 
-            <li class="nav-item"><a class="nav-link<?= nav_active('/admin/thresholds.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/thresholds.php">Thresholds</a></li>
             <li class="nav-item"><a class="nav-link<?= nav_active('/admin/models.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/models.php">Models</a></li>
             <li class="nav-item"><a class="nav-link<?= nav_active('/admin/exports.php', $currentPath) ? ' active' : '' ?>" href="<?= $BASE_URL ?>/admin/exports.php">Exports</a></li>
           <?php endif; ?>
@@ -521,7 +526,6 @@ function notif_open_href(string $baseUrl, string $role, int $log_id): string {
                     <?php endif; ?>
                   </a>
                 </li>
-                <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/thresholds.php"><i class="fa-solid fa-sliders me-2"></i>Thresholds</a></li>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/models.php"><i class="fa-solid fa-microchip me-2"></i>Models</a></li>
                 <li><a class="dropdown-item" href="<?= $BASE_URL ?>/admin/exports.php"><i class="fa-solid fa-download me-2"></i>Exports</a></li>
               <?php endif; ?>

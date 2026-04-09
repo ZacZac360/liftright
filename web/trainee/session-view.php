@@ -256,7 +256,7 @@ require __DIR__ . '/../includes/head.php';
           <hr class="border-secondary my-3">
 
           <div class="lr-stat-label">Notes</div>
-          <div class="lr-stat-subtext" style="white-space:pre-wrap;">
+          <div class="lr-stat-subtext lr-prewrap">
             <?= trim((string)$trainer_review['notes']) !== '' ? h((string)$trainer_review['notes']) : '—' ?>
           </div>
         <?php endif; ?>
@@ -388,7 +388,7 @@ require __DIR__ . '/../includes/head.php';
                 </div>
 
                 <div class="table-responsive mt-3">
-                  <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+                  <table class="table table-hover align-middle mb-0 table-lr-dark">
                     <thead>
                       <tr>
                         <th>#</th>
@@ -563,96 +563,5 @@ require __DIR__ . '/../includes/head.php';
   });
 })();
 </script>
-
-<style>
-.lr-issue-card{
-  border: 1px solid var(--lr-border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  background: rgba(15,23,42,0.45);
-}
-.lr-issue-card-warning{
-  border-color: color-mix(in srgb, var(--lr-warning) 35%, var(--lr-border));
-  background: color-mix(in srgb, var(--lr-warning) 8%, rgba(15,23,42,0.55));
-}
-.lr-issue-card-danger{
-  border-color: color-mix(in srgb, var(--lr-danger) 40%, var(--lr-border));
-  background: color-mix(in srgb, var(--lr-danger) 8%, rgba(15,23,42,0.55));
-}
-
-.lr-feedback-card{
-  border: 1px solid var(--lr-border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  background: rgba(15,23,42,0.65);
-}
-.lr-feedback-card-warning{
-  border-color: color-mix(in srgb, var(--lr-warning) 35%, var(--lr-border));
-}
-.lr-feedback-card-danger{
-  border-color: color-mix(in srgb, var(--lr-danger) 40%, var(--lr-border));
-}
-
-.lr-snapshot-grid{
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
-}
-
-.lr-snapshot-card{
-  border: 1px solid var(--lr-border);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(15,23,42,0.42);
-}
-
-.lr-snapshot-button{
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.lr-snapshot-thumb{
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid var(--lr-border);
-}
-
-.lr-mini-stat{
-  border: 1px solid var(--lr-border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: rgba(15,23,42,0.32);
-}
-
-.lr-advanced-filters{
-  border: 1px solid var(--lr-border);
-  border-radius: 14px;
-  padding: 12px 14px 14px;
-  background: rgba(15,23,42,0.28);
-}
-.lr-advanced-summary{
-  cursor: pointer;
-  list-style: none;
-  font-weight: 700;
-  color: var(--lr-text);
-  margin: 0;
-}
-.lr-advanced-summary::-webkit-details-marker{
-  display: none;
-}
-.lr-advanced-summary::after{
-  content: " +";
-  color: var(--lr-text-muted);
-  font-weight: 700;
-}
-.lr-advanced-filters[open] .lr-advanced-summary::after{
-  content: " −";
-}
-</style>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>

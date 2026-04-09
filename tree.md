@@ -1,6 +1,20 @@
+C:\Users\Zai>C:\xampp\htdocs\liftright
+'C:\xampp\htdocs\liftright' is not recognized as an internal or external command,
+operable program or batch file.
+
+C:\Users\Zai>cd C:\xampp\htdocs\liftright
+
+C:\xampp\htdocs\liftright>tree /f
+Folder PATH listing for volume System
+Volume serial number is 3E7B-6DED
 C:.
 │  .gitignore
+│  decision_score_histogram.png
+│  decision_score_histograms_clean.png
+│  feature_distribution.png
+│  feature_distribution_clean.png
 │  liftright_db.sql
+│  ocsvm_boundary.png
 │  Pasted markdown.md
 │  Thesis Proper.pdf
 │  tree.md
@@ -40,6 +54,8 @@ C:.
 │  │  │  04_live_bicep_curl.py
 │  │  │  04_live_lateral_raise.py
 │  │  │  04_live_shoulder_press.py
+│  │  │  generate_thesis_figures.py
+│  │  │  import pandas as pd.py
 │  │  │  realtime_server.py
 │  │  │
 │  │  ├─server
@@ -100,6 +116,10 @@ C:.
 │  │          renz_latraise.MP4
 │  │          renz_shoulderpress.MP4
 │  │
+│  ├─thesis_figures
+│  │      mean_duration.png
+│  │      mean_trunk_offset.png
+│  │
 │  └─videos
 │      ├─bicep_curl
 │      │      benj_bicep.MP4
@@ -126,6 +146,7 @@ C:.
     │  cancel-profile-request.php
     │  compose-message.php
     │  dir dump.txt
+    │  favicon.ico
     │  forgot-password.php
     │  hash.php
     │  index.php
@@ -164,11 +185,21 @@ C:.
     │
     ├─assets
     │  ├─css
+    │  │      landing.css
     │  │      style.css
     │  │
     │  ├─data
     │  ├─gifs
     │  ├─guides
+    │  ├─images
+    │  │  ├─landing
+    │  │  │      background.png
+    │  │  │      hero-athlete.png
+    │  │  │      liftright-logo.png
+    │  │  │
+    │  │  └─logo
+    │  │          liftright-logo.png
+    │  │
     │  ├─js
     │  │      charts.js
     │  │      start-session.js

@@ -264,7 +264,7 @@ require __DIR__ . '/../includes/head.php';
 
   <div class="lr-card p-0">
     <div class="table-responsive">
-      <table class="table table-dark table-striped table-bordered align-middle mb-0">
+      <table class="table table-dark table-bordered align-middle mb-0">
         <thead>
           <tr>
             <th style="width:170px;">Time</th>

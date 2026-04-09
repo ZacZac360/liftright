@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $invite_id = (int)($_POST['invite_id'] ?? 0);
   $action = (string)($_POST['action'] ?? '');
 
-  if ($invite_id <= 0 || !in_array($action, ['accept','decline'], true)) {
+  if ($invite_id <= 0 || !in_array($action, ['accept', 'decline'], true)) {
     $err = "Invalid action.";
   } else {
     // Load invite (must belong to trainer)
@@ -39,160 +39,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $trainee_id = (int)$inv['trainee_id'];
 
-      // Make sure trainee is not already assigned (optional safety)
-      $stmt = $mysqli->prepare("SELECT trainer_id FROM users WHERE user_id = ? AND role='user' LIMIT 1");
+      // Make sure trainee is not already assigned to another trainer
+      $stmt = $mysqli->prepare("
+        SELECT trainer_id
+        FROM users
+        WHERE user_id = ? AND role = 'user'
+        LIMIT 1
+      ");
       $stmt->bind_param("i", $trainee_id);
       $stmt->execute();
       $trainee_row = $stmt->get_result()->fetch_assoc();
       $stmt->close();
 
       $already = (int)($trainee_row['trainer_id'] ?? 0);
+
       if ($already > 0 && $already !== $trainer_id) {
         $err = "This trainee is already assigned to another trainer.";
       } else {
         if ($action === 'accept') {
-
           $mysqli->begin_transaction();
 
-try {
-  // 1) If user is already linked to THIS trainer, just close this pending invite
-  $stmt = $mysqli->prepare("SELECT trainer_id FROM users WHERE user_id=? AND role='user' LIMIT 1");
-  $stmt->bind_param("i", $trainee_id);
-  $stmt->execute();
-  $u = $stmt->get_result()->fetch_assoc();
-  $stmt->close();
+          try {
+            // Re-check current trainer link inside transaction
+            $stmt = $mysqli->prepare("
+              SELECT trainer_id
+              FROM users
+              WHERE user_id = ? AND role = 'user'
+              LIMIT 1
+            ");
+            $stmt->bind_param("i", $trainee_id);
+            $stmt->execute();
+            $u = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
 
-  $current_trainer = (int)($u['trainer_id'] ?? 0);
-  if ($current_trainer === $trainer_id) {
-    // mark this pending invite as declined/expired to remove it from the list
-    $stmt = $mysqli->prepare("
-      UPDATE trainer_invites
-      SET status='declined', responded_at=NOW()
-      WHERE invite_id=? AND trainer_id=? AND status='pending'
-    ");
-    $stmt->bind_param("ii", $invite_id, $trainer_id);
-    $stmt->execute();
-    $stmt->close();
+            $current_trainer = (int)($u['trainer_id'] ?? 0);
 
-    $mysqli->commit();
-    $msg = "Already linked to this trainee. Pending invite was closed.";
-  } else {
-    // 2) If an accepted invite already exists for this pair, don't accept again
-    $stmt = $mysqli->prepare("
-      SELECT invite_id
-      FROM trainer_invites
-      WHERE trainee_id=? AND trainer_id=? AND status='accepted'
-      LIMIT 1
-    ");
-    $stmt->bind_param("ii", $trainee_id, $trainer_id);
-    $stmt->execute();
-    $exists = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+            if ($current_trainer === $trainer_id) {
+              // Already linked to this trainer; just close the pending invite
+              $stmt = $mysqli->prepare("
+                UPDATE trainer_invites
+                SET status = 'declined', responded_at = NOW()
+                WHERE invite_id = ? AND trainer_id = ? AND status = 'pending'
+              ");
+              $stmt->bind_param("ii", $invite_id, $trainer_id);
+              $stmt->execute();
+              $stmt->close();
 
-    if ($exists) {
-      // close the pending duplicate
-      $stmt = $mysqli->prepare("
-        UPDATE trainer_invites
-        SET status='declined', responded_at=NOW()
-        WHERE invite_id=? AND trainer_id=? AND status='pending'
-      ");
-      $stmt->bind_param("ii", $invite_id, $trainer_id);
-      $stmt->execute();
-      $stmt->close();
+              $mysqli->commit();
+              $msg = "Already linked to this trainee. Pending invite was closed.";
+            } else {
+              // Check if an accepted invite already exists for this pair
+              $stmt = $mysqli->prepare("
+                SELECT invite_id
+                FROM trainer_invites
+                WHERE trainee_id = ? AND trainer_id = ? AND status = 'accepted'
+                LIMIT 1
+              ");
+              $stmt->bind_param("ii", $trainee_id, $trainer_id);
+              $stmt->execute();
+              $exists = $stmt->get_result()->fetch_assoc();
+              $stmt->close();
 
-      $mysqli->commit();
-      $msg = "This trainee was already accepted before. Duplicate pending invite was closed.";
-    } else {
-      // --- your original accept flow ---
-      $stmt = $mysqli->prepare("
-        UPDATE trainer_invites
-        SET status='accepted', responded_at=NOW()
-        WHERE invite_id=? AND trainer_id=? AND status='pending'
-      ");
-      $stmt->bind_param("ii", $invite_id, $trainer_id);
-      $stmt->execute();
-      $stmt->close();
+              if ($exists) {
+                // Close this pending duplicate
+                $stmt = $mysqli->prepare("
+                  UPDATE trainer_invites
+                  SET status = 'declined', responded_at = NOW()
+                  WHERE invite_id = ? AND trainer_id = ? AND status = 'pending'
+                ");
+                $stmt->bind_param("ii", $invite_id, $trainer_id);
+                $stmt->execute();
+                $stmt->close();
 
-      $stmt = $mysqli->prepare("
-        UPDATE users
-        SET trainer_id=?
-        WHERE user_id=? AND role='user'
-      ");
-      $stmt->bind_param("ii", $trainer_id, $trainee_id);
-      $stmt->execute();
-      $stmt->close();
+                $mysqli->commit();
+                $msg = "This trainee was already accepted before. Duplicate pending invite was closed.";
+              } else {
+                // Accept this invite
+                $stmt = $mysqli->prepare("
+                  UPDATE trainer_invites
+                  SET status = 'accepted', responded_at = NOW()
+                  WHERE invite_id = ? AND trainer_id = ? AND status = 'pending'
+                ");
+                $stmt->bind_param("ii", $invite_id, $trainer_id);
+                $stmt->execute();
+                $stmt->close();
 
-      // Optional: close any OTHER pending invites for same pair
-      $stmt = $mysqli->prepare("
-        UPDATE trainer_invites
-        SET status='declined', responded_at=NOW()
-        WHERE trainee_id=? AND trainer_id=? AND status='pending' AND invite_id <> ?
-      ");
-      $stmt->bind_param("iii", $trainee_id, $trainer_id, $invite_id);
-      $stmt->execute();
-      $stmt->close();
+                // Assign trainer to trainee
+                $stmt = $mysqli->prepare("
+                  UPDATE users
+                  SET trainer_id = ?
+                  WHERE user_id = ? AND role = 'user'
+                ");
+                $stmt->bind_param("ii", $trainer_id, $trainee_id);
+                $stmt->execute();
+                $stmt->close();
 
-      // notify trainee
-      $notif_msg = "Trainer accepted your request. You are now linked.";
-      $stmt = $mysqli->prepare("
-        INSERT INTO notifications (user_id, notif_type, message, from_user_id)
-        VALUES (?, 'assignment', ?, ?)
-      ");
-      $stmt->bind_param("isi", $trainee_id, $notif_msg, $trainer_id);
-      $stmt->execute();
-      $stmt->close();
+                // Close any other pending invites for same pair
+                $stmt = $mysqli->prepare("
+                  UPDATE trainer_invites
+                  SET status = 'declined', responded_at = NOW()
+                  WHERE trainee_id = ? AND trainer_id = ? AND status = 'pending' AND invite_id <> ?
+                ");
+                $stmt->bind_param("iii", $trainee_id, $trainer_id, $invite_id);
+                $stmt->execute();
+                $stmt->close();
 
-      $mysqli->commit();
-      $msg = "Accepted invite for trainee ID {$trainee_id}.";
-    }
-  }
-} catch (Throwable $e) {
-  $mysqli->rollback();
-  $err = "Database error: " . $e->getMessage();
-}
-          // accept invite
-          $stmt = $mysqli->prepare("
-            UPDATE trainer_invites
-            SET status='accepted', responded_at=NOW()
-            WHERE invite_id = ? AND trainer_id = ? AND status='pending'
-          ");
-          $stmt->bind_param("ii", $invite_id, $trainer_id);
-          $stmt->execute();
-          $stmt->close();
+                // Notify trainee ONCE
+                $notif_msg = "Trainer accepted your request. You are now linked.";
+                $stmt = $mysqli->prepare("
+                  INSERT INTO notifications (user_id, notif_type, message, from_user_id)
+                  VALUES (?, 'assignment', ?, ?)
+                ");
+                $stmt->bind_param("isi", $trainee_id, $notif_msg, $trainer_id);
+                $stmt->execute();
+                $stmt->close();
 
-          // assign trainer
-          $stmt = $mysqli->prepare("
-            UPDATE users
-            SET trainer_id = ?
-            WHERE user_id = ? AND role='user'
-          ");
-          $stmt->bind_param("ii", $trainer_id, $trainee_id);
-          $stmt->execute();
-          $stmt->close();
-
-          // notify trainee
-          $notif_msg = "Trainer accepted your request. You are now linked.";
-          $stmt = $mysqli->prepare("
-            INSERT INTO notifications (user_id, notif_type, message, from_user_id)
-            VALUES (?, 'assignment', ?, ?)
-          ");
-          $stmt->bind_param("isi", $trainee_id, $notif_msg, $trainer_id);
-          $stmt->execute();
-          $stmt->close();
-
-          $msg = "Accepted invite for trainee ID {$trainee_id}.";
+                $mysqli->commit();
+                $msg = "Accepted invite for trainee ID {$trainee_id}.";
+              }
+            }
+          } catch (Throwable $e) {
+            $mysqli->rollback();
+            $err = "Database error: " . $e->getMessage();
+          }
         } else {
-          // decline invite
+          // Decline invite
           $stmt = $mysqli->prepare("
             UPDATE trainer_invites
-            SET status='declined', responded_at=NOW()
-            WHERE invite_id = ? AND trainer_id = ? AND status='pending'
+            SET status = 'declined', responded_at = NOW()
+            WHERE invite_id = ? AND trainer_id = ? AND status = 'pending'
           ");
           $stmt->bind_param("ii", $invite_id, $trainer_id);
           $stmt->execute();
           $stmt->close();
 
-          // notify trainee
+          // Notify trainee
           $notif_msg = "Trainer declined your request. You may invite a different trainer.";
           $stmt = $mysqli->prepare("
             INSERT INTO notifications (user_id, notif_type, message, from_user_id)
@@ -223,7 +204,9 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param("i", $trainer_id);
 $stmt->execute();
 $res = $stmt->get_result();
-while ($r = $res->fetch_assoc()) $invites[] = $r;
+while ($r = $res->fetch_assoc()) {
+  $invites[] = $r;
+}
 $stmt->close();
 
 require __DIR__ . '/../includes/head.php';
@@ -259,7 +242,7 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="lr-card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+          <table class="table table-hover align-middle mb-0 table-lr-dark">
             <thead>
               <tr>
                 <th>Date</th>

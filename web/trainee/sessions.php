@@ -404,7 +404,7 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="lr-card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+          <table class="table table-hover align-middle mb-0 table-lr-dark">
             <thead>
               <tr>
                 <th>Date</th>
@@ -564,33 +564,6 @@ require __DIR__ . '/../includes/head.php';
     </div>
   </div>
 </div>
-
-<style>
-.lr-advanced-filters{
-  border: 1px solid var(--lr-border);
-  border-radius: 14px;
-  padding: 12px 14px 14px;
-  background: rgba(15,23,42,0.28);
-}
-.lr-advanced-summary{
-  cursor: pointer;
-  list-style: none;
-  font-weight: 700;
-  color: var(--lr-text);
-  margin: 0;
-}
-.lr-advanced-summary::-webkit-details-marker{
-  display: none;
-}
-.lr-advanced-summary::after{
-  content: " +";
-  color: var(--lr-text-muted);
-  font-weight: 700;
-}
-.lr-advanced-filters[open] .lr-advanced-summary::after{
-  content: " −";
-}
-</style>
 
 <script>
 (() => {

@@ -14,7 +14,7 @@ if ($message_id <= 0) {
   exit;
 }
 
-// load message (must be recipient)
+// load message
 $stmt = $mysqli->prepare("
   SELECT m.message_id, m.sender_id, u.full_name AS sender_name,
          m.subject, m.body, m.log_id, m.is_read, m.created_at
@@ -68,7 +68,7 @@ require __DIR__ . '/includes/head.php';
 
     <div class="lr-card">
       <div class="lr-card-body">
-        <div style="white-space: pre-wrap;"><?= h((string)$msg['body']) ?></div>
+        <div class="lr-prewrap"><?= h((string)$msg['body']) ?></div>
       </div>
     </div>
 

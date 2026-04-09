@@ -84,16 +84,14 @@ require __DIR__ . '/../includes/head.php';
 
     <!-- Header -->
     <div class="row mb-4 align-items-center">
-      <div class="col-md-8">
-        <div class="lr-section-title mb-1">Trainee Overview</div>
-        <h1 class="lr-section-heading mb-1">Welcome back, <?= h($full_name) ?> 👋</h1>
-        <p class="lr-stat-subtext mb-0">
-          Here's a snapshot of your recent training quality and fatigue patterns.
-        </p>
+      <div class="col-lg-8">
+        <div class="lr-section-title mb-1">History</div>
+        <h1 class="lr-section-heading mb-1">My Sessions</h1>
+        <p class="lr-stat-subtext mb-0">Review past workout sessions and open a detailed breakdown for each one.</p>
       </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex justify-content-md-end gap-2 flex-wrap">
-        <button type="button" id="btnPageGuide" class="btn btn-outline-light">? Guide</button>
-        <a class="btn btn-primary px-3" href="<?= $BASE_URL ?>/trainee/start-session.php">
+      <div class="col-lg-4 text-lg-end mt-3 mt-lg-0 d-flex justify-content-lg-end gap-2 flex-wrap">
+        <button type="button" id="btnPageGuide" class="btn btn-outline-light btn-lg">? Guide</button>
+        <a class="btn btn-primary btn-lg px-4" href="<?= $BASE_URL ?>/trainee/start-session.php">
           Start New Session
         </a>
       </div>
@@ -141,7 +139,7 @@ require __DIR__ . '/../includes/head.php';
 
       <!-- Recent sessions table -->
       <div class="col-lg-7">
-        <div class="lr-card h-100">
+        <div class="lr-card">
           <div class="lr-card-header d-flex justify-content-between align-items-center">
             <div>
               <div class="lr-section-title mb-1">History</div>
@@ -152,7 +150,7 @@ require __DIR__ . '/../includes/head.php';
 
           <div class="lr-card-body p-0">
             <div class="table-responsive">
-              <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+              <table class="table table-hover align-middle mb-0 table-lr-dark">
                 <thead>
                   <tr>
                     <th>Date</th>

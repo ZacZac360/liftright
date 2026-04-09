@@ -235,7 +235,7 @@ require __DIR__ . '/../includes/head.php';
 
       <div class="lr-card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover table-striped align-middle mb-0 table-lr-dark">
+          <table class="table table-hover align-middle mb-0 table-lr-dark">
             <thead>
               <tr>
                 <th>Reviewed</th>
