@@ -57,6 +57,7 @@ require __DIR__ . '/../includes/head.php';
               <span class="lr-badge lr-badge-good" id="uiReps">Reps: —</span>
               <span class="lr-badge lr-badge-warning" id="uiState">State: —</span>
               <span class="lr-badge lr-badge-warning" id="uiConf">Conf: —</span>
+              <span class="lr-badge lr-badge-warning" id="uiFatigue">Fatigue: —</span>
             </div>
 
             <div class="lr-instruction-box">
@@ -205,6 +206,16 @@ require __DIR__ . '/../includes/head.php';
               <div>
                 <div class="lr-stat-label">State</div>
                 <div id="uiStateSide" class="fs-6 fw-semibold">—</div>
+              </div>
+
+              <div>
+                <div class="lr-stat-label">Fatigue Level</div>
+                <div id="uiFatigueSide" class="fs-6 fw-semibold">—</div>
+              </div>
+
+              <div>
+                <div class="lr-stat-label">Fatigue Trend</div>
+                <div id="uiFatigueTrendSide" class="fs-6 fw-semibold">—</div>
               </div>
 
               <hr class="my-2">

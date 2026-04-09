@@ -36,6 +36,30 @@ function formBadge(int $pct): string {
 function fatigueBadge(int $flag): string {
   return $flag ? 'lr-badge lr-badge-warning' : 'lr-badge lr-badge-good';
 }
+function fatigueLevelBadge(?string $level): string {
+  return match((string)$level) {
+    'high'     => 'lr-badge lr-badge-danger',
+    'moderate' => 'lr-badge lr-badge-warning lr-badge-fatigue',
+    'low'      => 'lr-badge lr-badge-warning lr-badge-fatigue',
+    default    => 'lr-badge lr-badge-good',
+  };
+}
+function repClassBadge(?string $label): string {
+  return match((string)$label) {
+    'unsafe'  => 'lr-badge lr-badge-danger',
+    'fatigue' => 'lr-badge lr-badge-warning lr-badge-fatigue',
+    'warning' => 'lr-badge lr-badge-warning lr-badge-correction',
+    default   => 'lr-badge lr-badge-good',
+  };
+}
+function repClassText(?string $label): string {
+  return match((string)$label) {
+    'unsafe'  => 'Unsafe',
+    'fatigue' => 'Fatigue',
+    'warning' => 'Needs correction',
+    default   => 'Good',
+  };
+}
 function fmtDT(?string $dt): string {
   if (!$dt) return "—";
   $ts = strtotime($dt);
@@ -59,6 +83,12 @@ $stmt = $mysqli->prepare("
     tl.reps_bad,
     tl.form_error_count,
     tl.fatigue_flag,
+    tl.fatigue_peak_score,
+    tl.fatigue_final_score,
+    tl.fatigue_level,
+    tl.fatigue_trend,
+    tl.fatigue_since_rep,
+    tl.fatigue_summary,
     tl.processing_ms,
     tl.created_at,
     u.full_name AS trainee_name,
@@ -96,6 +126,10 @@ $stmt = $mysqli->prepare("
     rm.confidence_avg,
     rm.form_label,
     rm.anomaly_score,
+    rm.fatigue_score,
+    rm.fatigue_level,
+    rm.fatigue_trend,
+    rm.rep_meta,
     rm.created_at,
     rs.image_path AS snapshot_path
   FROM rep_metrics rm
@@ -267,11 +301,21 @@ require __DIR__ . '/../includes/head.php';
             </div>
             <div class="lr-stat-subtext mt-2"><?= (int)$good ?> good / <?= (int)$total ?> total reps</div>
             <hr class="my-3 lr-hr">
-            <div class="lr-stat-label">Fatigue flag</div>
-            <div class="mt-1">
-              <span class="<?= h(fatigueBadge((int)$session['fatigue_flag'])) ?>">
-                <?= ((int)$session['fatigue_flag'] === 1) ? 'Warning' : 'Normal' ?>
+            <div class="lr-stat-label">Fatigue</div>
+            <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+              <span class="<?= h(fatigueLevelBadge((string)($session['fatigue_level'] ?? 'none'))) ?>">
+                <?= h(ucfirst((string)($session['fatigue_level'] ?? 'none'))) ?>
               </span>
+              <span class="lr-badge lr-badge-warning text-capitalize">
+                <?= h((string)($session['fatigue_trend'] ?? 'stable')) ?>
+              </span>
+            </div>
+            <div class="lr-stat-subtext mt-2">
+              Peak: <?= isset($session['fatigue_peak_score']) && $session['fatigue_peak_score'] !== null ? number_format((float)$session['fatigue_peak_score'], 1) : '—' ?>
+              • Final: <?= isset($session['fatigue_final_score']) && $session['fatigue_final_score'] !== null ? number_format((float)$session['fatigue_final_score'], 1) : '—' ?>
+            </div>
+            <div class="lr-stat-subtext mt-1">
+              <?= h((string)($session['fatigue_summary'] ?? 'No fatigue summary available.')) ?>
             </div>
           </div>
         </div>
@@ -311,6 +355,8 @@ require __DIR__ . '/../includes/head.php';
                     <th>#</th>
                     <th>Snapshot</th>
                     <th>Label</th>
+                    <th>Fatigue</th>
+                    <th>Trend</th>
                     <th class="text-end">Duration</th>
                     <th class="text-end">ROM</th>
                     <th class="text-end">Sway</th>
@@ -320,9 +366,20 @@ require __DIR__ . '/../includes/head.php';
                 </thead>
                 <tbody>
                   <?php if (!$reps): ?>
-                    <tr><td colspan="8" class="text-center py-4 lr-stat-subtext">No rep metrics recorded.</td></tr>
+                    <tr><td colspan="10" class="text-center py-4 lr-stat-subtext">No rep metrics recorded.</td></tr>
                   <?php else: ?>
                     <?php foreach ($reps as $r): ?>
+                  <?php
+                    $meta = [];
+                    if (!empty($r['rep_meta'])) {
+                      $decoded = json_decode((string)$r['rep_meta'], true);
+                      if (is_array($decoded)) $meta = $decoded;
+                    }
+
+                    $repClass = strtolower((string)($meta['label_ui'] ?? (($r['form_label'] ?? 'good') === 'bad' ? 'unsafe' : 'good')));
+                    $repClassTextValue = repClassText($repClass);
+                    $repClassBadgeValue = repClassBadge($repClass);
+                  ?>
                   <tr>
                     <td><?= (int)$r['rep_index'] ?></td>
                     <td>
@@ -341,7 +398,15 @@ require __DIR__ . '/../includes/head.php';
                         —
                       <?php endif; ?>
                     </td>
-                    <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
+                    <td><span class="<?= h($repClassBadgeValue) ?>"><?= h($repClassTextValue) ?></span></td>
+                    <td>
+                      <?=
+                        $r['fatigue_score'] === null
+                          ? '—'
+                          : number_format((float)$r['fatigue_score'], 1) . ' (' . h((string)($r['fatigue_level'] ?? 'none')) . ')'
+                      ?>
+                    </td>
+                    <td class="text-capitalize"><?= h((string)($r['fatigue_trend'] ?? 'stable')) ?></td>
                     <td class="text-end"><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'] . ' ms' ?></td>
                     <td class="text-end"><?= $r['rom_score'] === null ? '—' : h(number_format((float)$r['rom_score'], 2)) ?></td>
                     <td class="text-end"><?= $r['trunk_sway'] === null ? '—' : h(number_format((float)$r['trunk_sway'], 3)) ?></td>

@@ -184,6 +184,85 @@ def bgr_to_dataurl_jpeg(frame_bgr: np.ndarray, quality: int = 80) -> str:
     return "data:image/jpeg;base64," + b64
 
 # =========================================================
+# FATIGUE HELPERS (shared + exercise specific)
+# =========================================================
+def fatigue_level_from_index(idx: float) -> str:
+    idx = float(idx)
+    if idx >= FATIGUE_STOP_INDEX:
+        return "high"
+    if idx >= FATIGUE_WARN_INDEX:
+        return "moderate"
+    if idx >= 15.0:
+        return "low"
+    return "none"
+
+def fatigue_trend_from_history(rep_fatigue_history: List[float]) -> str:
+    vals = [float(v) for v in rep_fatigue_history if np.isfinite(v)]
+    if len(vals) < 4:
+        return "stable"
+
+    tail = vals[-6:]
+    if len(tail) < 4:
+        return "stable"
+
+    n = len(tail)
+    x = np.arange(n, dtype=np.float32)
+    y = np.array(tail, dtype=np.float32)
+
+    slope = float(np.polyfit(x, y, 1)[0])
+    delta = float(y[-1] - y[0])
+
+    if slope >= 8.0 or delta >= 28.0:
+        return "sharply_rising"
+    if slope >= 3.0 or delta >= 12.0:
+        return "rising"
+    if slope <= -3.0 or delta <= -12.0:
+        return "recovering"
+    return "stable"
+
+def fatigue_summary_text(level: str, trend: str, since_rep: Optional[int], peak_score: float) -> str:
+    peak_score = float(peak_score)
+
+    if level == "high":
+        if since_rep is not None:
+            return f"High fatigue detected from around Rep {since_rep}; stopping is recommended."
+        return "High fatigue detected; stopping is recommended."
+
+    if level == "moderate":
+        if trend in ("rising", "sharply_rising") and since_rep is not None:
+            return f"Fatigue has been building since around Rep {since_rep}; form may degrade if the set continues."
+        return "Moderate fatigue detected; monitor form closely and consider resting."
+
+    if level == "low":
+        if trend in ("rising", "sharply_rising"):
+            return "Early fatigue signs detected; maintain control and monitor form."
+        return "Low fatigue signs detected, but form remains manageable."
+
+    if peak_score >= 15.0:
+        return "Minor fatigue-related changes were detected, but they did not reach warning level."
+    if peak_score >= 1.0:
+        return "No clear fatigue escalation was detected in this session."
+    return "Fatigue data was limited for this session."
+
+def build_fatigue_state(sess) -> Dict[str, Any]:
+    hist = list(getattr(sess, "rep_fatigue_history", []))
+    peak_score = max(hist) if hist else float(getattr(sess, "fatigue_index", 0.0))
+    final_score = hist[-1] if hist else float(getattr(sess, "fatigue_index", 0.0))
+    level = fatigue_level_from_index(final_score)
+    trend = fatigue_trend_from_history(hist)
+    since_rep = getattr(sess, "fatigue_since_rep", None)
+    summary = fatigue_summary_text(level, trend, since_rep, peak_score)
+
+    return {
+        "fatigue_peak_score": float(peak_score),
+        "fatigue_final_score": float(final_score),
+        "fatigue_level": str(level),
+        "fatigue_trend": str(trend),
+        "fatigue_since_rep": int(since_rep) if since_rep is not None else None,
+        "fatigue_summary": str(summary),
+    }
+
+# =========================================================
 # FATIGUE HELPERS (exercise specific)
 # =========================================================
 def fatigue_index_bc(baseline, rom_med, dur_med, drift_med):
@@ -191,13 +270,24 @@ def fatigue_index_bc(baseline, rom_med, dur_med, drift_med):
     dur_ratio = safe_div(dur_med, baseline["duration"])
     drift_delta = drift_med - baseline["drift"]
 
-    c_rom = np.clip((0.70 - rom_ratio) / 0.70, 0.0, 1.0)
-    c_dur = np.clip((dur_ratio - 1.25) / 1.25, 0.0, 1.0)
-    c_drift = np.clip(drift_delta / 0.25, 0.0, 1.0)
+    # Trigger earlier when ROM starts falling
+    c_rom = np.clip((0.85 - rom_ratio) / 0.35, 0.0, 1.0)
 
-    idx = (0.45 * c_rom + 0.25 * c_dur + 0.30 * c_drift) * 100.0
-    comps = dict(rom_ratio=float(rom_ratio), dur_ratio=float(dur_ratio), drift_delta=float(drift_delta),
-                 c_rom=float(c_rom), c_dur=float(c_dur), c_drift=float(c_drift))
+    # Trigger earlier when reps start slowing down
+    c_dur = np.clip((dur_ratio - 1.05) / 0.55, 0.0, 1.0)
+
+    # Keep drift meaningful, but not too harsh
+    c_drift = np.clip(drift_delta / 0.18, 0.0, 1.0)
+
+    idx = (0.40 * c_rom + 0.35 * c_dur + 0.25 * c_drift) * 100.0
+    comps = dict(
+        rom_ratio=float(rom_ratio),
+        dur_ratio=float(dur_ratio),
+        drift_delta=float(drift_delta),
+        c_rom=float(c_rom),
+        c_dur=float(c_dur),
+        c_drift=float(c_drift)
+    )
     return float(idx), comps
 
 def fatigue_index_sp(baseline, range_med, dur_med, stack_med):
@@ -639,6 +729,10 @@ class BicepCurlSession:
     fatigue_since_rep: Optional[int] = None
     fatigue_text: str = ""
     fatigue_details: Dict[str, Any] = field(default_factory=dict)
+    rep_fatigue_history: List[float] = field(default_factory=list)
+    fatigue_level: str = "none"
+    fatigue_trend: str = "stable"
+    fatigue_summary: str = ""
 
     last_rep_text: str = "-"
     last_rep_color: Tuple[int, int, int] = TEXT_COLOR
@@ -679,6 +773,10 @@ class ShoulderPressSession:
     fatigue_stop_streak: int = 0
     fatigue_index: float = 0.0
     fatigue_since_rep: Optional[int] = None
+    rep_fatigue_history: List[float] = field(default_factory=list)
+    fatigue_level: str = "none"
+    fatigue_trend: str = "stable"
+    fatigue_summary: str = ""
 
     last_rep_text: str = "-"
     last_rep_color: Tuple[int, int, int] = TEXT_COLOR
@@ -720,6 +818,10 @@ class LateralRaiseSession:
     fatigue_stop_streak: int = 0
     fatigue_index: float = 0.0
     fatigue_since_rep: Optional[int] = None
+    rep_fatigue_history: List[float] = field(default_factory=list)
+    fatigue_level: str = "none"
+    fatigue_trend: str = "stable"
+    fatigue_summary: str = ""
 
     last_rep_text: str = "-"
     last_rep_color: Tuple[int, int, int] = TEXT_COLOR
@@ -913,21 +1015,43 @@ class BicepCurlPipeline:
 
                     sess.fatigue_text = ""
                     sess.fatigue_details = {}
+
                     if sess.baseline_ready and len(sess.recent) >= 4:
                         last3 = list(sess.recent)[-3:]
                         rom_med = median_or([r["rom"] for r in last3], sess.baseline["rom"])
                         dur_med = median_or([r["duration"] for r in last3], sess.baseline["duration"])
                         drift_med = median_or([r["drift"] for r in last3], sess.baseline["drift"])
-                        sess.fatigue_index, comps = fatigue_index_bc(sess.baseline, rom_med, dur_med, drift_med)
+
+                        sess.fatigue_index, comps = fatigue_index_bc(
+                            sess.baseline, rom_med, dur_med, drift_med
+                        )
                         sess.fatigue_details = comps
+                        sess.rep_fatigue_history.append(float(sess.fatigue_index))
 
                         if sess.fatigue_since_rep is None and sess.fatigue_index >= FATIGUE_WARN_INDEX:
                             sess.fatigue_since_rep = int(rep_sum["rep"])
 
-                        if sess.fatigue_index >= FATIGUE_WARN_INDEX:
-                            sess.fatigue_text = f"FATIGUE WARNING: index {sess.fatigue_index:.0f}/100"
+                        sess.fatigue_level = fatigue_level_from_index(sess.fatigue_index)
+                        sess.fatigue_trend = fatigue_trend_from_history(sess.rep_fatigue_history)
+                        sess.fatigue_summary = fatigue_summary_text(
+                            sess.fatigue_level,
+                            sess.fatigue_trend,
+                            sess.fatigue_since_rep,
+                            max(sess.rep_fatigue_history) if sess.rep_fatigue_history else sess.fatigue_index
+                        )
 
-                        sess.fatigue_stop_streak = sess.fatigue_stop_streak + 1 if sess.fatigue_index >= FATIGUE_STOP_INDEX else 0
+                        if sess.fatigue_level == "high":
+                            sess.fatigue_text = f"HIGH FATIGUE: index {sess.fatigue_index:.0f}/100"
+                        elif sess.fatigue_level == "moderate":
+                            sess.fatigue_text = f"FATIGUE RISING: index {sess.fatigue_index:.0f}/100"
+                        elif sess.fatigue_level == "low":
+                            sess.fatigue_text = f"LOW FATIGUE: index {sess.fatigue_index:.0f}/100"
+
+                        sess.fatigue_stop_streak = (
+                            sess.fatigue_stop_streak + 1
+                            if sess.fatigue_index >= FATIGUE_STOP_INDEX
+                            else 0
+                        )
 
                         if sess.fatigue_stop_streak >= FATIGUE_STOP_STREAK:
                             sess.fatigue_flag = 1
@@ -943,8 +1067,19 @@ class BicepCurlPipeline:
                                 "feedback_type": "fatigue",
                                 "severity": "warning",
                                 "feedback_text": msg,
-                                "meta": {"since_rep": int(since), "top_issues": issues, "fatigue_index": float(sess.fatigue_index)}
+                                "meta": {
+                                    "since_rep": int(since),
+                                    "top_issues": issues,
+                                    "fatigue_index": float(sess.fatigue_index),
+                                    "fatigue_level": str(sess.fatigue_level),
+                                    "fatigue_trend": str(sess.fatigue_trend),
+                                    "details": comps
+                                }
                             })
+                    else:
+                        sess.fatigue_level = "none"
+                        sess.fatigue_trend = "stable"
+                        sess.fatigue_summary = "Fatigue data is still calibrating."
 
                     # ML softness
                     sess.score_hist.append(float(score))
@@ -957,8 +1092,14 @@ class BicepCurlPipeline:
                     ml_tip = (sess.ml_low_streak >= BC_ML_LOW_STREAK_FOR_TIP)
 
                     rep_tips = []
-                    if sess.fatigue_text:
-                        rep_tips.append("Fatigue trend - consider rest or lighter weight")
+
+                    if sess.fatigue_level == "high":
+                        rep_tips.append("High fatigue - stop the set or reduce load")
+                    elif sess.fatigue_level == "moderate":
+                        rep_tips.append("Fatigue rising - prioritize control and consider rest")
+                    elif sess.fatigue_level == "low" and sess.fatigue_trend in ("rising", "sharply_rising"):
+                        rep_tips.append("Early fatigue signs - keep elbows steady and control the rep")
+
                     if sess.baseline_ready:
                         if rep_sum["rom"] < 0.55 * sess.baseline["rom"]:
                             rep_tips.append("ROM is dropping - lighten weight or rest")
@@ -967,6 +1108,7 @@ class BicepCurlPipeline:
                     else:
                         if rep_sum["rom"] < 45:
                             rep_tips.append("Try a fuller range of motion (if comfortable)")
+
                     if ml_tip:
                         rep_tips.append("Consistency drifting (ML)")
 
@@ -999,9 +1141,44 @@ class BicepCurlPipeline:
                             sess.last_rep_color = GOOD_COLOR
 
                     rep_bad = bool(rep_sum.get("rep_bad_seen", False))
-                    rep_warn = (not rep_bad) and (bool(rep_sum.get("rep_tip_seen", False)) or bool(ml_tip) or bool(rep_tips))
+
+                    fatigue_rep = (
+                        (sess.fatigue_level in ("moderate", "high")) or
+                        (
+                            sess.fatigue_level == "low" and
+                            sess.fatigue_trend in ("rising", "sharply_rising") and
+                            any(
+                                x in reasons for x in [
+                                    "High fatigue - stop the set or reduce load",
+                                    "Fatigue rising - prioritize control and consider rest",
+                                    "Early fatigue signs - keep elbows steady and control the rep",
+                                    "ROM is dropping - lighten weight or rest",
+                                    "Tempo slowing - stay controlled"
+                                ]
+                            )
+                        )
+                    )
+
+                    rep_warn = (
+                        (not rep_bad) and
+                        (not fatigue_rep) and
+                        (
+                            bool(rep_sum.get("rep_tip_seen", False)) or
+                            bool(ml_tip) or
+                            bool(rep_tips)
+                        )
+                    )
+
                     form_label_db = "bad" if rep_bad else "good"
-                    label_ui = "bad" if rep_bad else ("warning" if rep_warn else "good")
+
+                    if rep_bad:
+                        label_ui = "unsafe"
+                    elif fatigue_rep:
+                        label_ui = "fatigue"
+                    elif rep_warn:
+                        label_ui = "warning"
+                    else:
+                        label_ui = "good"
 
                     sess.reps.append({
                         "rep_index": rep_n,
@@ -1011,6 +1188,9 @@ class BicepCurlPipeline:
                         "confidence_avg": float(rep_sum.get("confidence_avg", 0.0)),
                         "form_label": form_label_db,
                         "anomaly_score": float(score),
+                        "fatigue_score": float(sess.fatigue_index),
+                        "fatigue_level": str(sess.fatigue_level),
+                        "fatigue_trend": str(sess.fatigue_trend),
                         "meta": {
                             "label_ui": label_ui,
                             "is_warning": bool(rep_warn),
@@ -1019,6 +1199,9 @@ class BicepCurlPipeline:
                             "rep_bad_seen": bool(rep_sum.get("rep_bad_seen", False)),
                             "reasons": reasons[:4],
                             "fatigue_index": float(sess.fatigue_index),
+                            "fatigue_level": str(sess.fatigue_level),
+                            "fatigue_trend": str(sess.fatigue_trend),
+                            "fatigue_summary": str(sess.fatigue_summary),
                         }
                     })
 
@@ -1075,17 +1258,16 @@ class BicepCurlPipeline:
             cv2.putText(frame_bgr, sess.last_rep_text, (10, h - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, sess.last_rep_color, 2)
 
         status = {
-            # session-level state (do NOT change meaning)
             "state": "stop" if sess.stopped else "running",
-
-            # rep-phase (THIS is what your UI needs)
             "phase": "stop" if sess.stopped else str(getattr(sess.rep_counter, "state", "down")),
-
             "exercise": "bicep_curl",
             "rep_now": int(sess.rep_counter.rep_count),
             "last_rep_text": sess.last_rep_text,
             "fatigue_index": float(sess.fatigue_index),
             "fatigue_warning": bool(sess.fatigue_text),
+            "fatigue_level": str(getattr(sess, "fatigue_level", "none")),
+            "fatigue_trend": str(getattr(sess, "fatigue_trend", "stable")),
+            "fatigue_summary": str(getattr(sess, "fatigue_summary", "")),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
             "live_feedback_level": str(feedback_level),
@@ -1299,12 +1481,28 @@ class ShoulderPressPipeline:
                         dur_med   = median_or([r["duration"] for r in last3], sess.baseline["duration"])
                         stack_med = median_or([r["stack"] for r in last3], sess.baseline["stack"])
 
-                        sess.fatigue_index, comps = fatigue_index_sp(sess.baseline, range_med, dur_med, stack_med)
+                        sess.fatigue_index, comps = fatigue_index_sp(
+                            sess.baseline, range_med, dur_med, stack_med
+                        )
+                        sess.rep_fatigue_history.append(float(sess.fatigue_index))
 
                         if sess.fatigue_since_rep is None and sess.fatigue_index >= FATIGUE_WARN_INDEX:
                             sess.fatigue_since_rep = rep_sum["rep"]
 
-                        sess.fatigue_stop_streak = sess.fatigue_stop_streak + 1 if sess.fatigue_index >= FATIGUE_STOP_INDEX else 0
+                        sess.fatigue_level = fatigue_level_from_index(sess.fatigue_index)
+                        sess.fatigue_trend = fatigue_trend_from_history(sess.rep_fatigue_history)
+                        sess.fatigue_summary = fatigue_summary_text(
+                            sess.fatigue_level,
+                            sess.fatigue_trend,
+                            sess.fatigue_since_rep,
+                            max(sess.rep_fatigue_history) if sess.rep_fatigue_history else sess.fatigue_index
+                        )
+
+                        sess.fatigue_stop_streak = (
+                            sess.fatigue_stop_streak + 1
+                            if sess.fatigue_index >= FATIGUE_STOP_INDEX
+                            else 0
+                        )
 
                         if sess.fatigue_stop_streak >= FATIGUE_STOP_STREAK:
                             sess.fatigue_flag = 1
@@ -1320,8 +1518,19 @@ class ShoulderPressPipeline:
                                 "feedback_type": "fatigue",
                                 "severity": "warning",
                                 "feedback_text": msg,
-                                "meta": {"since_rep": int(since), "top_issues": issues, "fatigue_index": float(sess.fatigue_index), "details": comps}
+                                "meta": {
+                                    "since_rep": int(since),
+                                    "top_issues": issues,
+                                    "fatigue_index": float(sess.fatigue_index),
+                                    "fatigue_level": str(sess.fatigue_level),
+                                    "fatigue_trend": str(sess.fatigue_trend),
+                                    "details": comps
+                                }
                             })
+                    else:
+                        sess.fatigue_level = "none"
+                        sess.fatigue_trend = "stable"
+                        sess.fatigue_summary = "Fatigue data is still calibrating."
 
                     # ML softness
                     sess.score_hist.append(float(score))
@@ -1334,14 +1543,20 @@ class ShoulderPressPipeline:
                     ml_tip = (sess.ml_low_streak >= SP_ML_LOW_STREAK_FOR_TIP)
 
                     rep_tips = []
+
+                    if sess.fatigue_level == "high":
+                        rep_tips.append("High fatigue - stop the set or reduce load")
+                    elif sess.fatigue_level == "moderate":
+                        rep_tips.append("Fatigue rising - prioritize control and consider rest")
+                    elif sess.fatigue_level == "low" and sess.fatigue_trend in ("rising", "sharply_rising"):
+                        rep_tips.append("Early fatigue signs - keep your press controlled")
+
                     if sess.baseline_ready and rep_sum["wrist_rel_range"] < 0.55 * sess.baseline["range"]:
                         rep_tips.append("Range dropping - lighten weight or rest")
                     if sess.baseline_ready and rep_sum["duration"] > 1.8 * sess.baseline["duration"]:
                         rep_tips.append("Tempo slowing - stay controlled")
                     if ml_tip:
                         rep_tips.append("Consistency drifting (ML)")
-                    if sess.fatigue_index >= FATIGUE_WARN_INDEX:
-                        rep_tips.append("Fatigue trend - consider rest")
 
                     rep_bad_reason = rep_sum.get("rep_bad_reason", "")
                     rep_tip_reason = rep_sum.get("rep_tip_reason", "")
@@ -1357,7 +1572,33 @@ class ShoulderPressPipeline:
 
                     # Text
                     rep_bad = bool(rep_sum.get("rep_bad_seen", False))
-                    rep_warn = (not rep_bad) and (bool(rep_sum.get("rep_tip_seen", False)) or ml_tip or bool(rep_tips))
+
+                    fatigue_rep = (
+                        (sess.fatigue_level in ("moderate", "high")) or
+                        (
+                            sess.fatigue_level == "low" and
+                            sess.fatigue_trend in ("rising", "sharply_rising") and
+                            any(
+                                x in reasons for x in [
+                                    "High fatigue - stop the set or reduce load",
+                                    "Fatigue rising - prioritize control and consider rest",
+                                    "Early fatigue signs - keep your press controlled",
+                                    "Range dropping - lighten weight or rest",
+                                    "Tempo slowing - stay controlled"
+                                ]
+                            )
+                        )
+                    )
+
+                    rep_warn = (
+                        (not rep_bad) and
+                        (not fatigue_rep) and
+                        (
+                            bool(rep_sum.get("rep_tip_seen", False)) or
+                            bool(ml_tip) or
+                            bool(rep_tips)
+                        )
+                    )
 
                     if rep_bad:
                         sess.last_rep_text = f"Rep {rep_n}: UNSAFE - {rep_bad_reason or 'adjust form'}"
@@ -1374,7 +1615,15 @@ class ShoulderPressPipeline:
                         sess.last_rep_color = GOOD_COLOR
 
                     form_label_db = "bad" if rep_bad else "good"
-                    label_ui = "bad" if rep_bad else ("warning" if rep_warn else "good")
+
+                    if rep_bad:
+                        label_ui = "unsafe"
+                    elif fatigue_rep:
+                        label_ui = "fatigue"
+                    elif rep_warn:
+                        label_ui = "warning"
+                    else:
+                        label_ui = "good"
 
                     sess.reps.append({
                         "rep_index": rep_n,
@@ -1384,12 +1633,18 @@ class ShoulderPressPipeline:
                         "confidence_avg": float(rep_sum.get("confidence_avg", 0.0)),
                         "form_label": form_label_db,
                         "anomaly_score": float(score),
+                        "fatigue_score": float(sess.fatigue_index),
+                        "fatigue_level": str(sess.fatigue_level),
+                        "fatigue_trend": str(sess.fatigue_trend),
                         "meta": {
                             "label_ui": label_ui,
                             "is_warning": bool(rep_warn),
                             "wrist_stack_absmax": float(rep_sum["wrist_drift_absmax"]),
                             "reasons": reasons[:4],
                             "fatigue_index": float(sess.fatigue_index),
+                            "fatigue_level": str(sess.fatigue_level),
+                            "fatigue_trend": str(sess.fatigue_trend),
+                            "fatigue_summary": str(sess.fatigue_summary),
                             "arm": rep_sum.get("arm", "?")
                         }
                     })
@@ -1448,6 +1703,9 @@ class ShoulderPressPipeline:
             "last_rep_text": sess.last_rep_text,
             "fatigue_index": float(sess.fatigue_index),
             "fatigue_warning": bool(sess.fatigue_index >= FATIGUE_WARN_INDEX),
+            "fatigue_level": str(getattr(sess, "fatigue_level", "none")),
+            "fatigue_trend": str(getattr(sess, "fatigue_trend", "stable")),
+            "fatigue_summary": str(getattr(sess, "fatigue_summary", "")),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
             "live_feedback_level": str(feedback_level),
@@ -1734,12 +1992,28 @@ class LateralRaisePipeline:
                         dur_med   = median_or([r["duration"] for r in last3], sess.baseline["duration"])
                         elbow_med = median_or([r["elbow"] for r in last3], sess.baseline["elbow"])
 
-                        sess.fatigue_index, comps = fatigue_index_lr(sess.baseline, range_med, dur_med, elbow_med)
+                        sess.fatigue_index, comps = fatigue_index_lr(
+                            sess.baseline, range_med, dur_med, elbow_med
+                        )
+                        sess.rep_fatigue_history.append(float(sess.fatigue_index))
 
                         if sess.fatigue_since_rep is None and sess.fatigue_index >= FATIGUE_WARN_INDEX:
                             sess.fatigue_since_rep = rep_sum["rep"]
 
-                        sess.fatigue_stop_streak = sess.fatigue_stop_streak + 1 if sess.fatigue_index >= FATIGUE_STOP_INDEX else 0
+                        sess.fatigue_level = fatigue_level_from_index(sess.fatigue_index)
+                        sess.fatigue_trend = fatigue_trend_from_history(sess.rep_fatigue_history)
+                        sess.fatigue_summary = fatigue_summary_text(
+                            sess.fatigue_level,
+                            sess.fatigue_trend,
+                            sess.fatigue_since_rep,
+                            max(sess.rep_fatigue_history) if sess.rep_fatigue_history else sess.fatigue_index
+                        )
+
+                        sess.fatigue_stop_streak = (
+                            sess.fatigue_stop_streak + 1
+                            if sess.fatigue_index >= FATIGUE_STOP_INDEX
+                            else 0
+                        )
 
                         if sess.fatigue_stop_streak >= FATIGUE_STOP_STREAK:
                             sess.fatigue_flag = 1
@@ -1755,8 +2029,19 @@ class LateralRaisePipeline:
                                 "feedback_type": "fatigue",
                                 "severity": "warning",
                                 "feedback_text": msg,
-                                "meta": {"since_rep": int(since), "top_issues": issues, "fatigue_index": float(sess.fatigue_index), "details": comps}
+                                "meta": {
+                                    "since_rep": int(since),
+                                    "top_issues": issues,
+                                    "fatigue_index": float(sess.fatigue_index),
+                                    "fatigue_level": str(sess.fatigue_level),
+                                    "fatigue_trend": str(sess.fatigue_trend),
+                                    "details": comps
+                                }
                             })
+                    else:
+                        sess.fatigue_level = "none"
+                        sess.fatigue_trend = "stable"
+                        sess.fatigue_summary = "Fatigue data is still calibrating."
 
                     # ML softness (relative)
                     sess.score_hist.append(float(score))
@@ -1769,6 +2054,14 @@ class LateralRaisePipeline:
                     ml_tip = (sess.ml_low_streak >= LR_ML_LOW_STREAK_FOR_TIP)
 
                     rep_tips = []
+
+                    if sess.fatigue_level == "high":
+                        rep_tips.append("High fatigue - stop the set or reduce load")
+                    elif sess.fatigue_level == "moderate":
+                        rep_tips.append("Fatigue rising - prioritize control and consider rest")
+                    elif sess.fatigue_level == "low" and sess.fatigue_trend in ("rising", "sharply_rising"):
+                        rep_tips.append("Early fatigue signs - keep the raise controlled")
+
                     if sess.baseline_ready and rep_sum["wrist_rel_range"] < 0.55 * sess.baseline["range"]:
                         rep_tips.append("Range dropping - lighten weight or rest")
                     if sess.baseline_ready and rep_sum["duration"] > 1.8 * sess.baseline["duration"]:
@@ -1777,8 +2070,6 @@ class LateralRaisePipeline:
                         rep_tips.append("Arms bending more - avoid upright-row motion")
                     if ml_tip:
                         rep_tips.append("Consistency drifting (ML)")
-                    if sess.fatigue_index >= FATIGUE_WARN_INDEX:
-                        rep_tips.append("Fatigue trend - consider rest")
 
                     rep_bad_reason = rep_sum.get("rep_bad_reason", "")
                     rep_tip_reason = rep_sum.get("rep_tip_reason", "")
@@ -1793,7 +2084,34 @@ class LateralRaisePipeline:
                         reasons.append(t)
 
                     rep_bad = bool(rep_sum.get("rep_bad_seen", False))
-                    rep_warn = (not rep_bad) and (bool(rep_sum.get("rep_tip_seen", False)) or ml_tip or bool(rep_tips))
+
+                    fatigue_rep = (
+                        (sess.fatigue_level in ("moderate", "high")) or
+                        (
+                            sess.fatigue_level == "low" and
+                            sess.fatigue_trend in ("rising", "sharply_rising") and
+                            any(
+                                x in reasons for x in [
+                                    "High fatigue - stop the set or reduce load",
+                                    "Fatigue rising - prioritize control and consider rest",
+                                    "Early fatigue signs - keep the raise controlled",
+                                    "Range dropping - lighten weight or rest",
+                                    "Tempo slowing - stay controlled",
+                                    "Arms bending more - avoid upright-row motion"
+                                ]
+                            )
+                        )
+                    )
+
+                    rep_warn = (
+                        (not rep_bad) and
+                        (not fatigue_rep) and
+                        (
+                            bool(rep_sum.get("rep_tip_seen", False)) or
+                            bool(ml_tip) or
+                            bool(rep_tips)
+                        )
+                    )
 
                     if rep_bad:
                         sess.last_rep_text = f"Rep {rep_n}: UNSAFE - {rep_bad_reason or 'adjust form'}"
@@ -1810,7 +2128,15 @@ class LateralRaisePipeline:
                         sess.last_rep_color = GOOD_COLOR
 
                     form_label_db = "bad" if rep_bad else "good"
-                    label_ui = "bad" if rep_bad else ("warning" if rep_warn else "good")
+
+                    if rep_bad:
+                        label_ui = "unsafe"
+                    elif fatigue_rep:
+                        label_ui = "fatigue"
+                    elif rep_warn:
+                        label_ui = "warning"
+                    else:
+                        label_ui = "good"
 
                     sess.reps.append({
                         "rep_index": rep_n,
@@ -1820,12 +2146,18 @@ class LateralRaisePipeline:
                         "confidence_avg": float(rep_sum.get("confidence_avg", 0.0)),
                         "form_label": form_label_db,
                         "anomaly_score": float(score),
+                        "fatigue_score": float(sess.fatigue_index),
+                        "fatigue_level": str(sess.fatigue_level),
+                        "fatigue_trend": str(sess.fatigue_trend),
                         "meta": {
                             "label_ui": label_ui,
                             "is_warning": bool(rep_warn),
                             "elbow_min": float(elbow_clip),
                             "reasons": reasons[:4],
                             "fatigue_index": float(sess.fatigue_index),
+                            "fatigue_level": str(sess.fatigue_level),
+                            "fatigue_trend": str(sess.fatigue_trend),
+                            "fatigue_summary": str(sess.fatigue_summary),
                             "arm": rep_sum.get("arm", "?")
                         }
                     })
@@ -1885,6 +2217,9 @@ class LateralRaisePipeline:
             "last_rep_text": sess.last_rep_text,
             "fatigue_index": float(sess.fatigue_index),
             "fatigue_warning": bool(sess.fatigue_index >= FATIGUE_WARN_INDEX),
+            "fatigue_level": str(getattr(sess, "fatigue_level", "none")),
+            "fatigue_trend": str(getattr(sess, "fatigue_trend", "stable")),
+            "fatigue_summary": str(getattr(sess, "fatigue_summary", "")),
             "baseline_ready": bool(sess.baseline_ready),
             "conf": float(sess.conf_last),
             "live_feedback_level": str(feedback_level),
@@ -2075,7 +2410,7 @@ def frame(req: FrameReq):
     print(f"[LiftRight Metrics] /frame ML processing: {ml_processing_ms:.2f} ms")
 
     return {
-        "annotated_frame_dataurl": bgr_to_dataurl_jpeg(annotated, quality=80),
+        "annotated_frame_dataurl": bgr_to_dataurl_jpeg(annotated, quality=60),
         "status": status
     }
 
@@ -2092,6 +2427,8 @@ def finish(req: FinishReq):
     reps_good = reps_total - reps_bad
     form_error_count = sum(1 for f in sess.feedback if f.get("severity") == "danger")
 
+    fatigue_state = build_fatigue_state(sess)
+
     payload = {
         "reps_total": int(reps_total),
         "reps_good": int(reps_good),
@@ -2099,6 +2436,12 @@ def finish(req: FinishReq):
         "reps_warn": int(reps_warn),
         "form_error_count": int(form_error_count),
         "fatigue_flag": int(getattr(sess, "fatigue_flag", 0)),
+        "fatigue_peak_score": float(fatigue_state["fatigue_peak_score"]),
+        "fatigue_final_score": float(fatigue_state["fatigue_final_score"]),
+        "fatigue_level": str(fatigue_state["fatigue_level"]),
+        "fatigue_trend": str(fatigue_state["fatigue_trend"]),
+        "fatigue_since_rep": fatigue_state["fatigue_since_rep"],
+        "fatigue_summary": str(fatigue_state["fatigue_summary"]),
         "reps": sess.reps,
         "feedback": sess.feedback,
     }

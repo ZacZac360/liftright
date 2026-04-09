@@ -105,6 +105,14 @@ function formBadge(int $pct): string {
 function fatigueBadge(int $flag): string {
   return $flag ? 'lr-badge lr-badge-warning' : 'lr-badge lr-badge-good';
 }
+function fatigueLevelBadge(?string $level): string {
+  return match((string)$level) {
+    'high'     => 'lr-badge lr-badge-danger',
+    'moderate' => 'lr-badge lr-badge-warning',
+    'low'      => 'lr-badge lr-badge-warning',
+    default    => 'lr-badge lr-badge-good',
+  };
+}
 
 /* ---------------------------
    Build WHERE + params once
@@ -217,6 +225,7 @@ $offset = ($page - 1) * $per_page;
 $dataSql = "
   SELECT log_id, exercise_type, source_type,
          reps_total, reps_good, reps_bad, form_error_count, fatigue_flag,
+         fatigue_level, fatigue_trend, fatigue_peak_score,
          processing_ms, created_at
   FROM training_logs
   $where
@@ -435,9 +444,14 @@ require __DIR__ . '/../includes/head.php';
                   <td><?= (int)$s['reps_good'] ?> good / <?= (int)$s['reps_total'] ?> total</td>
                   <td><span class="<?= h(formBadge($pct)) ?>"><?= (int)$pct ?>%</span></td>
                   <td>
-                    <span class="<?= h(fatigueBadge((int)$s['fatigue_flag'])) ?>">
-                      <?= ((int)$s['fatigue_flag'] === 1) ? 'Warning' : 'Normal' ?>
-                    </span>
+                    <div class="d-flex flex-wrap gap-1 justify-content-start">
+                      <span class="<?= h(fatigueLevelBadge((string)($s['fatigue_level'] ?? 'none'))) ?>">
+                        <?= h((string)($s['fatigue_level'] ?? 'none')) ?>
+                      </span>
+                      <span class="lr-badge lr-badge-warning text-capitalize">
+                        <?= h((string)($s['fatigue_trend'] ?? 'stable')) ?>
+                      </span>
+                    </div>
                   </td>
                   <td class="text-end">
                     <?= $s['processing_ms'] === null ? '—' : h((string)$s['processing_ms'] . ' ms') ?>

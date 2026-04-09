@@ -239,7 +239,17 @@ if ($action === 'finish') {
   $stmt = $mysqli->prepare("
     UPDATE training_logs
     SET
-      reps_total = ?, reps_good = ?, reps_bad = ?, form_error_count = ?, fatigue_flag = ?,
+      reps_total = ?,
+      reps_good = ?,
+      reps_bad = ?,
+      form_error_count = ?,
+      fatigue_flag = ?,
+      fatigue_peak_score = ?,
+      fatigue_final_score = ?,
+      fatigue_level = ?,
+      fatigue_trend = ?,
+      fatigue_since_rep = ?,
+      fatigue_summary = ?,
       finished_at = NOW(),
       processing_ms = ?
     WHERE log_id = ? AND user_id = ?
@@ -251,9 +261,29 @@ if ($action === 'finish') {
   $err_count  = (int)($data['form_error_count'] ?? 0);
   $fatigue    = (int)($data['fatigue_flag'] ?? 0);
 
-  $stmt->bind_param("iiiiiiii",
-    $reps_total, $reps_good, $reps_bad, $err_count, $fatigue,
-    $processing_ms, $log_id, $user_id
+  $fatigue_peak_score  = (float)($data['fatigue_peak_score'] ?? 0);
+  $fatigue_final_score = (float)($data['fatigue_final_score'] ?? 0);
+  $fatigue_level       = (string)($data['fatigue_level'] ?? 'none');
+  $fatigue_trend       = (string)($data['fatigue_trend'] ?? 'stable');
+  $fatigue_since_rep   = !empty($data['fatigue_since_rep']) ? (int)$data['fatigue_since_rep'] : null;
+  $fatigue_summary     = (string)($data['fatigue_summary'] ?? '');
+
+  $stmt->bind_param(
+    "iiiiiddssisiii",
+    $reps_total,
+    $reps_good,
+    $reps_bad,
+    $err_count,
+    $fatigue,
+    $fatigue_peak_score,
+    $fatigue_final_score,
+    $fatigue_level,
+    $fatigue_trend,
+    $fatigue_since_rep,
+    $fatigue_summary,
+    $processing_ms,
+    $log_id,
+    $user_id
   );
   $stmt->execute();
   $stmt->close();
@@ -266,16 +296,32 @@ if ($action === 'finish') {
 
       $sql = "
         INSERT INTO rep_metrics
-          (log_id, rep_index, duration_ms, rom_score, trunk_sway, confidence_avg, form_label, anomaly_score, rep_meta)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (
+            log_id,
+            rep_index,
+            duration_ms,
+            rom_score,
+            trunk_sway,
+            confidence_avg,
+            form_label,
+            anomaly_score,
+            fatigue_score,
+            fatigue_level,
+            fatigue_trend,
+            rep_meta
+          )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-          duration_ms=VALUES(duration_ms),
-          rom_score=VALUES(rom_score),
-          trunk_sway=VALUES(trunk_sway),
-          confidence_avg=VALUES(confidence_avg),
-          form_label=VALUES(form_label),
-          anomaly_score=VALUES(anomaly_score),
-          rep_meta=VALUES(rep_meta)
+          duration_ms = VALUES(duration_ms),
+          rom_score = VALUES(rom_score),
+          trunk_sway = VALUES(trunk_sway),
+          confidence_avg = VALUES(confidence_avg),
+          form_label = VALUES(form_label),
+          anomaly_score = VALUES(anomaly_score),
+          fatigue_score = VALUES(fatigue_score),
+          fatigue_level = VALUES(fatigue_level),
+          fatigue_trend = VALUES(fatigue_trend),
+          rep_meta = VALUES(rep_meta)
       ";
 
       $stmt = $mysqli->prepare($sql);
@@ -285,25 +331,35 @@ if ($action === 'finish') {
         $rep_index = (int)($r['rep_index'] ?? 0);
         if ($rep_index <= 0) continue;
 
-        $duration = (int)($r['duration_ms'] ?? 0);
-        $rom      = (float)($r['rom_score'] ?? 0.0);
-        $sway     = (float)($r['trunk_sway'] ?? 0.0);
-        $conf     = (float)($r['confidence_avg'] ?? 0.0);
-        $label    = (string)($r['form_label'] ?? 'unknown');
-        $score    = (float)($r['anomaly_score'] ?? 0.0);
+        $duration      = (int)($r['duration_ms'] ?? 0);
+        $rom           = (float)($r['rom_score'] ?? 0.0);
+        $sway          = (float)($r['trunk_sway'] ?? 0.0);
+        $conf          = (float)($r['confidence_avg'] ?? 0.0);
+        $label         = (string)($r['form_label'] ?? 'unknown');
+        $score         = (float)($r['anomaly_score'] ?? 0.0);
+        $fatigue_score = (float)($r['fatigue_score'] ?? 0.0);
+        $fatigue_level = (string)($r['fatigue_level'] ?? 'none');
+        $fatigue_trend = (string)($r['fatigue_trend'] ?? 'stable');
 
         $metaJson = "";
         if (!empty($r['meta']) && is_array($r['meta'])) {
           $metaJson = json_encode($r['meta'], JSON_UNESCAPED_SLASHES);
         }
 
-        // 9 params: i i i d d d s d s
+        // 12 params: i i i d d d s d d s s s
         $ok = $stmt->bind_param(
-          "iiidddsds",
-          $log_id, $rep_index, $duration,
-          $rom, $sway, $conf,
+          "iiidddsddsss",
+          $log_id,
+          $rep_index,
+          $duration,
+          $rom,
+          $sway,
+          $conf,
           $label,
           $score,
+          $fatigue_score,
+          $fatigue_level,
+          $fatigue_trend,
           $metaJson
         );
 

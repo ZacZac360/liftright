@@ -21,6 +21,8 @@ $stmt = $mysqli->prepare("
   SELECT log_id, user_id, exercise_type, source_type,
          video_path, result_json_path,
          reps_total, reps_good, reps_bad, form_error_count, fatigue_flag,
+         fatigue_peak_score, fatigue_final_score, fatigue_level, fatigue_trend,
+         fatigue_since_rep, fatigue_summary,
          started_at, finished_at, processing_ms,
          created_at
   FROM training_logs
@@ -80,6 +82,10 @@ $stmt = $mysqli->prepare("
     rm.confidence_avg,
     rm.form_label,
     rm.anomaly_score,
+    rm.fatigue_score,
+    rm.fatigue_level,
+    rm.fatigue_trend,
+    rm.rep_meta,
     rs.image_path AS snapshot_path
   FROM rep_metrics rm
   LEFT JOIN rep_snapshots rs
@@ -128,11 +134,35 @@ function formBadge(int $pct): string {
 function fatigueBadge(int $flag): string {
   return $flag ? 'lr-badge lr-badge-warning' : 'lr-badge lr-badge-good';
 }
+function fatigueLevelBadge(?string $level): string {
+  return match((string)$level) {
+    'high'     => 'lr-badge lr-badge-danger',
+    'moderate' => 'lr-badge lr-badge-warning',
+    'low'      => 'lr-badge lr-badge-warning',
+    default    => 'lr-badge lr-badge-good',
+  };
+}
 function severityBadge(string $sev): string {
   return match($sev) {
     'danger'  => 'lr-badge lr-badge-danger',
     'warning' => 'lr-badge lr-badge-warning',
     default   => 'lr-badge lr-badge-good',
+  };
+}
+function repClassBadge(?string $label): string {
+  return match((string)$label) {
+    'unsafe'  => 'lr-badge lr-badge-danger',
+    'fatigue' => 'lr-badge lr-badge-warning',
+    'warning' => 'lr-badge lr-badge-warning',
+    default   => 'lr-badge lr-badge-good',
+  };
+}
+function repClassText(?string $label): string {
+  return match((string)$label) {
+    'unsafe'  => 'Unsafe',
+    'fatigue' => 'Fatigue',
+    'warning' => 'Needs correction',
+    default   => 'Good',
   };
 }
 
@@ -217,11 +247,28 @@ require __DIR__ . '/../includes/head.php';
       <div class="col-md-4">
         <div class="lr-card h-100">
           <div class="lr-card-body">
-            <div class="lr-stat-label">Fatigue flag</div>
-            <div class="lr-stat-value mt-1"><?= ((int)$session['fatigue_flag'] === 1) ? 'Yes' : 'No' ?></div>
-            <span class="<?= h(fatigueBadge((int)$session['fatigue_flag'])) ?> mt-2">
-              <?= ((int)$session['fatigue_flag'] === 1) ? 'Warning' : 'Normal' ?>
-            </span>
+            <div class="lr-stat-label">Fatigue</div>
+            <div class="lr-stat-value mt-1 text-capitalize">
+              <?= h((string)($session['fatigue_level'] ?? 'none')) ?>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <span class="<?= h(fatigueLevelBadge((string)($session['fatigue_level'] ?? 'none'))) ?>">
+                <?= h((string)($session['fatigue_level'] ?? 'none')) ?>
+              </span>
+              <span class="lr-badge lr-badge-warning text-capitalize">
+                <?= h((string)($session['fatigue_trend'] ?? 'stable')) ?>
+              </span>
+            </div>
+
+            <p class="lr-stat-subtext mt-2 mb-1">
+              Peak: <?= isset($session['fatigue_peak_score']) && $session['fatigue_peak_score'] !== null ? number_format((float)$session['fatigue_peak_score'], 1) : '—' ?>
+              • Final: <?= isset($session['fatigue_final_score']) && $session['fatigue_final_score'] !== null ? number_format((float)$session['fatigue_final_score'], 1) : '—' ?>
+            </p>
+
+            <p class="lr-stat-subtext mb-0">
+              <?= h((string)($session['fatigue_summary'] ?? 'No fatigue summary available.')) ?>
+            </p>
           </div>
         </div>
       </div>
@@ -334,8 +381,16 @@ require __DIR__ . '/../includes/head.php';
                 <?php foreach ($snapshot_reps as $r): ?>
                   <?php
                     $repIndex = (int)$r['rep_index'];
-                    $label = strtolower((string)($r['form_label'] ?? 'good'));
-                    $labelClass = ($label === 'bad') ? 'lr-badge lr-badge-danger' : 'lr-badge lr-badge-good';
+
+                    $meta = [];
+                    if (!empty($r['rep_meta'])) {
+                      $decoded = json_decode((string)$r['rep_meta'], true);
+                      if (is_array($decoded)) $meta = $decoded;
+                    }
+
+                    $label = strtolower((string)($meta['label_ui'] ?? (($r['form_label'] ?? 'good') === 'bad' ? 'unsafe' : 'good')));
+                    $labelClass = repClassBadge($label);
+                    $labelText = repClassText($label);
                   ?>
                   <div class="lr-snapshot-card">
                     <button
@@ -351,7 +406,7 @@ require __DIR__ . '/../includes/head.php';
 
                     <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
                       <div class="fw-semibold">Rep <?= $repIndex ?></div>
-                      <span class="<?= $labelClass ?> text-capitalize"><?= h($label) ?></span>
+                      <span class="<?= $labelClass ?>"><?= h($labelText) ?></span>
                     </div>
                   </div>
                 <?php endforeach; ?>
@@ -397,23 +452,44 @@ require __DIR__ . '/../includes/head.php';
                         <th>Trunk sway</th>
                         <th>Confidence</th>
                         <th>Label</th>
+                        <th>Fatigue</th>
+                        <th>Trend</th>
                         <th class="text-end">Anomaly</th>
                       </tr>
                     </thead>
                     <tbody>
                     <?php if (count($reps) === 0): ?>
                       <tr>
-                        <td colspan="7" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
+                        <td colspan="9" class="text-center py-4 lr-stat-subtext">No rep metrics saved for this session yet.</td>
                       </tr>
                     <?php else: ?>
                       <?php foreach ($reps as $r): ?>
+                        <?php
+                          $meta = [];
+                          if (!empty($r['rep_meta'])) {
+                            $decoded = json_decode((string)$r['rep_meta'], true);
+                            if (is_array($decoded)) $meta = $decoded;
+                          }
+
+                          $repClass = strtolower((string)($meta['label_ui'] ?? (($r['form_label'] ?? 'good') === 'bad' ? 'unsafe' : 'good')));
+                          $repClassTextValue = repClassText($repClass);
+                          $repClassBadgeValue = repClassBadge($repClass);
+                        ?>
                         <tr>
                           <td><?= (int)$r['rep_index'] ?></td>
                           <td><?= $r['duration_ms'] === null ? '—' : (int)$r['duration_ms'].' ms' ?></td>
                           <td><?= $r['rom_score'] === null ? '—' : number_format((float)$r['rom_score'], 2) ?></td>
                           <td><?= $r['trunk_sway'] === null ? '—' : number_format((float)$r['trunk_sway'], 2) ?></td>
                           <td><?= $r['confidence_avg'] === null ? '—' : number_format((float)$r['confidence_avg'], 2) ?></td>
-                          <td class="text-capitalize"><?= h((string)$r['form_label']) ?></td>
+                          <td><span class="<?= h($repClassBadgeValue) ?>"><?= h($repClassTextValue) ?></span></td>
+                          <td>
+                            <?=
+                              $r['fatigue_score'] === null
+                                ? '—'
+                                : number_format((float)$r['fatigue_score'], 1) . ' (' . h((string)($r['fatigue_level'] ?? 'none')) . ')'
+                            ?>
+                          </td>
+                          <td class="text-capitalize"><?= h((string)($r['fatigue_trend'] ?? 'stable')) ?></td>
                           <td class="text-end"><?= $r['anomaly_score'] === null ? '—' : number_format((float)$r['anomaly_score'], 2) ?></td>
                         </tr>
                       <?php endforeach; ?>

@@ -17,7 +17,7 @@ function is_logged_in(): bool {
   return isset($_SESSION['user_id'], $_SESSION['role']);
 }
 
-function require_approved(string $redirectTo = "/login.php"): void {
+function require_approved(string $redirectTo = "/index.php"): void {
   global $BASE_URL;
 
   if (!is_logged_in()) {
@@ -51,7 +51,7 @@ function require_approved(string $redirectTo = "/login.php"): void {
   }
 }
 
-function require_login(string $redirectTo = "/login.php"): void {
+function require_login(string $redirectTo = "/index.php"): void {
   require_approved($redirectTo);
 }
 

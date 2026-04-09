@@ -24,6 +24,7 @@
   const uiReps = document.getElementById("uiReps");
   const uiState = document.getElementById("uiState");
   const uiConf = document.getElementById("uiConf");
+  const uiFatigue = document.getElementById("uiFatigue");
   const uiFeedback = document.getElementById("uiFeedback");
   const uiLastRep = document.getElementById("uiLastRep");
   const uiExerciseMain = document.getElementById("uiExerciseMain");
@@ -37,6 +38,8 @@
   const uiRepsSide = document.getElementById("uiRepsSide");
   const uiStateSide = document.getElementById("uiStateSide");
   const uiConfSide = document.getElementById("uiConfSide");
+  const uiFatigueSide = document.getElementById("uiFatigueSide");
+  const uiFatigueTrendSide = document.getElementById("uiFatigueTrendSide");
   const uiExerciseSide = document.getElementById("uiExerciseSide");
   const uiLogIdSide = document.getElementById("uiLogIdSide");
 
@@ -93,10 +96,10 @@
   /* =========================
      PERFORMANCE TUNING
   ========================= */
-  const TARGET_PROCESS_FPS = 6;          // try 6 first
-  const FRAME_INTERVAL_MS = Math.round(1000 / TARGET_PROCESS_FPS);
-  const FRAME_JPEG_QUALITY = 0.42;       // was 0.5
-  let lastTickAt = 0;
+  const MAX_INFLIGHT = 3;                // push harder; try 2 first if 3 gets unstable
+  const FRAME_JPEG_QUALITY = 0.28;       // lower payload size
+  const FRAME_TARGET_WIDTH = 512;        // smaller frame sent to server
+  let inflightCount = 0;
 
   let screenshotBusy = false;
   const screenshotQueue = [];
@@ -244,8 +247,7 @@ const DANGER_COOLDOWN_MS = 1200;
       overlayCanvas.height = vh;
     }
 
-    const TARGET_W = 640;
-    const scale = Math.min(1, TARGET_W / vw);
+    const scale = Math.min(1, FRAME_TARGET_WIDTH / vw);
     captureCanvas.width = Math.round(vw * scale);
     captureCanvas.height = Math.round(vh * scale);
   }
@@ -275,7 +277,7 @@ const DANGER_COOLDOWN_MS = 1200;
     video.srcObject = null;
   }
 
-  function canvasToJpegBase64(canvas, quality = 0.5) {
+  function canvasToJpegBase64(canvas, quality = FRAME_JPEG_QUALITY) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
@@ -646,14 +648,22 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
     else el.classList.add("lr-badge-warning");
   }
 
+  function fatigueKind(level) {
+    const s = String(level || "").toLowerCase();
+    if (s === "high") return "danger";
+    if (s === "moderate") return "warning";
+    if (s === "low") return "warning";
+    return "good";
+  }
+
   /* =========================
      MAIN SESSION LOOP (/frame)
   ========================= */
   async function tick() {
-    if (!running || inflight) return;
+    if (!running || inflightCount >= MAX_INFLIGHT) return;
     if (!video.videoWidth || !video.videoHeight) return;
 
-    inflight = true;
+    inflightCount++;
     try {
       perfFrameCount++;
       const fpsNow = performance.now();
@@ -664,7 +674,7 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
       }
 
       capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      const frameDataUrl = await canvasToJpegBase64(captureCanvas, 0.5);
+      const frameDataUrl = await canvasToJpegBase64(captureCanvas, FRAME_JPEG_QUALITY);
 
       const requestStart = performance.now();
 
@@ -749,14 +759,21 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
       const repNow = (status.rep_now ?? "—");
       const state = (status.state ?? "—");
       const conf = (status.conf ?? "—");
+      const fatigueLevel = String(status.fatigue_level ?? "none");
+      const fatigueTrend = String(status.fatigue_trend ?? "stable");
+      const fatigueSummary = String(status.fatigue_summary ?? "");
+      const liveFeedbackText = String(status.live_feedback_text ?? "Tracking...");
 
       uiReps.textContent = `Reps: ${repNow}`;
       setBadge(uiState, `State: ${state}`, String(state).toLowerCase() === "stop" ? "danger" : "warning");
       uiConf.textContent = `Conf: ${typeof conf === "number" ? conf.toFixed(2) : conf}`;
+      setBadge(uiFatigue, `Fatigue: ${fatigueLevel}`, fatigueKind(fatigueLevel));
 
       uiRepsSide.textContent = String(repNow);
       uiStateSide.textContent = String(state);
       uiConfSide.textContent = (typeof conf === "number" ? conf.toFixed(2) : String(conf));
+      if (uiFatigueSide) uiFatigueSide.textContent = fatigueLevel;
+      if (uiFatigueTrendSide) uiFatigueTrendSide.textContent = fatigueTrend;
 
       const ex = (status.exercise ?? exerciseSelect.value);
       if (uiExerciseMain) uiExerciseMain.textContent = ex;
@@ -764,8 +781,8 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
 
       uiFeedback.textContent = String(state).toLowerCase() === "stop"
         ? "STOP RECOMMENDED (fatigue)"
-        : "Tracking...";
-      uiLastRep.textContent = status.last_rep_text ?? "—";
+        : liveFeedbackText;
+      uiLastRep.textContent = (status.last_rep_text ?? "—") + (fatigueSummary ? ` | ${fatigueSummary}` : "");
 
       const now = Date.now();
 
@@ -790,14 +807,14 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
       setBadge(uiState, "State: error", "danger");
       uiStateSide.textContent = "error";
     } finally {
-      inflight = false;
+      inflightCount = Math.max(0, inflightCount - 1);
     }
   }
 
   async function loop() {
     if (!loopRunning) return;
-    await tick();
-    setTimeout(loop, 16);
+    tick();
+    requestAnimationFrame(loop);
   }
 
   function startLoop() {
@@ -873,7 +890,7 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
     const finishedLogId = logId;
 
     running = false;
-    inflight = false;
+    inflightCount = 0;
     stopLoop();
 
     stopCamera();
@@ -1207,6 +1224,7 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
   uiReps.textContent = "Reps: —";
   uiState.textContent = "State: —";
   uiConf.textContent = "Conf: —";
+  if (uiFatigue) uiFatigue.textContent = "Fatigue: —";
   uiFeedback.textContent = "—";
   uiLastRep.textContent = "—";
   if (uiLogIdMain) uiLogIdMain.textContent = "—";
@@ -1215,6 +1233,8 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
   uiRepsSide.textContent = "—";
   uiStateSide.textContent = "—";
   uiConfSide.textContent = "—";
+  if (uiFatigueSide) uiFatigueSide.textContent = "—";
+  if (uiFatigueTrendSide) uiFatigueTrendSide.textContent = "—";
 
   uiInstruction.textContent = "Press Start to begin.";
   uiInstructionSub.textContent = "Warm-up assumed. Use a safe load you can control.";
