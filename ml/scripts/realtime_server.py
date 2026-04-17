@@ -265,10 +265,11 @@ def build_fatigue_state(sess) -> Dict[str, Any]:
 # =========================================================
 # FATIGUE HELPERS (exercise specific)
 # =========================================================
-def fatigue_index_bc(baseline, rom_med, dur_med, drift_med):
+def fatigue_index_bc(baseline, rom_med, dur_med, drift_med, trunk_med):
     rom_ratio = safe_div(rom_med, baseline["rom"])
     dur_ratio = safe_div(dur_med, baseline["duration"])
     drift_delta = drift_med - baseline["drift"]
+    trunk_delta = trunk_med - baseline["trunk"]
 
     # Trigger earlier when ROM starts falling
     c_rom = np.clip((0.85 - rom_ratio) / 0.35, 0.0, 1.0)
@@ -276,17 +277,22 @@ def fatigue_index_bc(baseline, rom_med, dur_med, drift_med):
     # Trigger earlier when reps start slowing down
     c_dur = np.clip((dur_ratio - 1.05) / 0.55, 0.0, 1.0)
 
-    # Keep drift meaningful, but not too harsh
+    # Elbow drift still matters
     c_drift = np.clip(drift_delta / 0.18, 0.0, 1.0)
 
-    idx = (0.40 * c_rom + 0.35 * c_dur + 0.25 * c_drift) * 100.0
+    # Trunk sway / torso instability now matters too
+    c_trunk = np.clip(trunk_delta / 0.12, 0.0, 1.0)
+
+    idx = (0.32 * c_rom + 0.28 * c_dur + 0.20 * c_drift + 0.20 * c_trunk) * 100.0
     comps = dict(
         rom_ratio=float(rom_ratio),
         dur_ratio=float(dur_ratio),
         drift_delta=float(drift_delta),
+        trunk_delta=float(trunk_delta),
         c_rom=float(c_rom),
         c_dur=float(c_dur),
-        c_drift=float(c_drift)
+        c_drift=float(c_drift),
+        c_trunk=float(c_trunk)
     )
     return float(idx), comps
 
@@ -341,6 +347,7 @@ class CurlRepCounter:
         self.rep_start_t = t
         self.angles = []
         self.drift = []
+        self.trunk = []
         self.confs = []
         self.rep_tip_seen = False
         self.rep_bad_seen = False
@@ -357,13 +364,14 @@ class CurlRepCounter:
             if not self.rep_tip_reason:
                 self.rep_tip_reason = str(tip_list[0])
 
-    def update(self, elbow_angle, elbow_drift_norm, conf_mean: float):
+    def update(self, elbow_angle, elbow_drift_norm, trunk_offset_norm, conf_mean: float):
         now = time.time()
         self.buf.append(float(elbow_angle))
         ang_s = float(np.median(self.buf))
 
         self.angles.append(ang_s)
         self.drift.append(float(elbow_drift_norm))
+        self.trunk.append(float(trunk_offset_norm))
         self.confs.append(float(conf_mean))
 
         rep_done = False
@@ -381,6 +389,7 @@ class CurlRepCounter:
 
                     angles = np.array(self.angles, dtype=np.float32)
                     drift  = np.array(self.drift, dtype=np.float32)
+                    trunk  = np.array(self.trunk, dtype=np.float32)
                     confs  = np.array(self.confs, dtype=np.float32)
 
                     rep_summary = {
@@ -388,6 +397,7 @@ class CurlRepCounter:
                         "rom": float(angles.max() - angles.min()),
                         "duration": float(now - self.rep_start_t),
                         "elbow_drift_absmax": float(np.max(drift)) if len(drift) else 0.0,
+                        "trunk_absmax": float(np.max(np.abs(trunk))) if len(trunk) else 0.0,
                         "confidence_avg": float(np.mean(confs)) if len(confs) else 0.0,
                         "rep_tip_seen": bool(self.rep_tip_seen),
                         "rep_bad_seen": bool(self.rep_bad_seen),
@@ -712,7 +722,12 @@ class BicepCurlSession:
 
     calib: list = field(default_factory=list)
     baseline_ready: bool = False
-    baseline: Dict[str, Optional[float]] = field(default_factory=lambda: {"rom": None, "duration": None, "drift": None})
+    baseline: Dict[str, Optional[float]] = field(default_factory=lambda: {
+        "rom": None,
+        "duration": None,
+        "drift": None,
+        "trunk": None
+    })
     recent: deque = field(default_factory=lambda: deque(maxlen=FATIGUE_WINDOW))
 
     set_counts: Dict[str, int] = field(default_factory=lambda: {
@@ -875,17 +890,24 @@ class BicepCurlPipeline:
             enable_segmentation=False, min_detection_confidence=0.5, min_tracking_confidence=0.5
         )
 
-    def highlight(self, frame_bgr, pose_landmarks, right_elbow_level, left_elbow_level):
+    def highlight(self, frame_bgr, pose_landmarks, right_elbow_level, left_elbow_level, trunk_level):
         if pose_landmarks is None:
             return
+
         if right_elbow_level > 0:
             c = WARN_COLOR if right_elbow_level == 1 else BAD_COLOR
             draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_ELBOW, c)
             draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST, c)
+
         if left_elbow_level > 0:
             c = WARN_COLOR if left_elbow_level == 1 else BAD_COLOR
             draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_ELBOW, c)
             draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.LEFT_ELBOW, mp_pose.PoseLandmark.LEFT_WRIST, c)
+
+        if trunk_level > 0:
+            c = WARN_COLOR if trunk_level == 1 else BAD_COLOR
+            draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_HIP, c, thickness=5)
+            draw_segment(frame_bgr, pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_HIP, c, thickness=5)
 
     def top_issues(self, set_counts):
         items = []
@@ -929,6 +951,9 @@ class BicepCurlPipeline:
                 shoulder_width = abs(LSH[0] - RSH[0])
                 if shoulder_width < 2:
                     shoulder_width = 2
+                mid_sh_x = (LSH[0] + RSH[0]) / 2.0
+                mid_hp_x = (LHP[0] + RHP[0]) / 2.0
+                trunk_offset_norm = safe_div((mid_sh_x - mid_hp_x), shoulder_width)
 
                 right_angle = calculate_angle((RSH[0], RSH[1]), (REL[0], REL[1]), (RWR[0], RWR[1]))
                 left_angle  = calculate_angle((LSH[0], LSH[1]), (LEL[0], LEL[1]), (LWR[0], LWR[1]))
@@ -957,6 +982,16 @@ class BicepCurlPipeline:
                     left_elbow_level = 1
                     sess.set_counts["elbow_warn_left"] += 1
 
+                # ---------------- TRUNK SWAY CHECK----------------
+                trunk_level = 0
+
+                if abs(trunk_offset_norm) > 0.20:
+                    trunk_level = 2
+                    bad.append("Avoid torso swinging")
+                elif abs(trunk_offset_norm) > 0.10:
+                    trunk_level = 1
+                    tips.append("Keep torso stable")
+
                 worst_elbow = max(right_elbow_level, left_elbow_level)
                 if worst_elbow == 2:
                     if right_elbow_level == 2 and left_elbow_level == 2:
@@ -973,7 +1008,7 @@ class BicepCurlPipeline:
                     else:
                         tips.append("Keep elbow steadier (left)")
 
-                self.highlight(frame_bgr, res.pose_landmarks, right_elbow_level, left_elbow_level)
+                self.highlight(frame_bgr, res.pose_landmarks, right_elbow_level, left_elbow_level, trunk_level)
 
                 if bad:
                     feedback = "UNSAFE: " + bad[0]
@@ -992,18 +1027,33 @@ class BicepCurlPipeline:
                     sess.rep_counter.mark_feedback(bad, tips)
 
                 _, rep_done, rep_sum = sess.rep_counter.update(
-                    elbow_angle_for_rep, elbow_drift_for_rep, conf_mean
+                    elbow_angle_for_rep,
+                    elbow_drift_for_rep,
+                    trunk_offset_norm,
+                    conf_mean
                 )
 
                 if rep_done and rep_sum:
                     drift_clip = min(rep_sum["elbow_drift_absmax"], 0.70)
-                    feat_map = {"rom": rep_sum["rom"], "duration": rep_sum["duration"], "elbow_drift_absmax": drift_clip}
+                    trunk_clip = min(rep_sum.get("trunk_absmax", 0.0), 0.55)
+
+                    feat_map = {
+                        "rom": rep_sum["rom"],
+                        "duration": rep_sum["duration"],
+                        "elbow_drift_absmax": drift_clip
+                    }
                     if "trunk_absmax" in self.bundle.feats:
-                        feat_map["trunk_absmax"] = 0.0
+                        feat_map["trunk_absmax"] = trunk_clip
 
                     score = model_score(self.bundle, feat_map)
 
-                    sess.recent.append({"rom": rep_sum["rom"], "duration": rep_sum["duration"], "drift": drift_clip, "score": score})
+                    sess.recent.append({
+                        "rom": rep_sum["rom"],
+                        "duration": rep_sum["duration"],
+                        "drift": drift_clip,
+                        "trunk": trunk_clip,
+                        "score": score
+                    })
 
                     if not sess.baseline_ready and not rep_sum["rep_bad_seen"]:
                         sess.calib.append(sess.recent[-1])
@@ -1011,6 +1061,7 @@ class BicepCurlPipeline:
                             sess.baseline["rom"] = median_or([r["rom"] for r in sess.calib], 120.0)
                             sess.baseline["duration"] = median_or([r["duration"] for r in sess.calib], 1.5)
                             sess.baseline["drift"] = median_or([r["drift"] for r in sess.calib], 0.14)
+                            sess.baseline["trunk"] = median_or([r["trunk"] for r in sess.calib], 0.03)
                             sess.baseline_ready = True
 
                     sess.fatigue_text = ""
@@ -1021,9 +1072,10 @@ class BicepCurlPipeline:
                         rom_med = median_or([r["rom"] for r in last3], sess.baseline["rom"])
                         dur_med = median_or([r["duration"] for r in last3], sess.baseline["duration"])
                         drift_med = median_or([r["drift"] for r in last3], sess.baseline["drift"])
+                        trunk_med = median_or([r["trunk"] for r in last3], sess.baseline["trunk"])
 
                         sess.fatigue_index, comps = fatigue_index_bc(
-                            sess.baseline, rom_med, dur_med, drift_med
+                            sess.baseline, rom_med, dur_med, drift_med, trunk_med
                         )
                         sess.fatigue_details = comps
                         sess.rep_fatigue_history.append(float(sess.fatigue_index))
@@ -1105,6 +1157,8 @@ class BicepCurlPipeline:
                             rep_tips.append("ROM is dropping - lighten weight or rest")
                         if rep_sum["duration"] > 1.8 * sess.baseline["duration"]:
                             rep_tips.append("Tempo slowing - stay controlled")
+                        if trunk_clip > (sess.baseline["trunk"] + 0.08):
+                            rep_tips.append("Torso sway increasing - stay upright and controlled")
                     else:
                         if rep_sum["rom"] < 45:
                             rep_tips.append("Try a fuller range of motion (if comfortable)")
@@ -1184,7 +1238,7 @@ class BicepCurlPipeline:
                         "rep_index": rep_n,
                         "duration_ms": int(round(rep_sum["duration"] * 1000)),
                         "rom_score": float(rep_sum["rom"]),
-                        "trunk_sway": 0.0,
+                        "trunk_sway": float(trunk_clip),
                         "confidence_avg": float(rep_sum.get("confidence_avg", 0.0)),
                         "form_label": form_label_db,
                         "anomaly_score": float(score),
@@ -1194,6 +1248,7 @@ class BicepCurlPipeline:
                         "meta": {
                             "label_ui": label_ui,
                             "is_warning": bool(rep_warn),
+                            "trunk_absmax": float(trunk_clip),
                             "elbow_drift_absmax": float(drift_clip),
                             "rep_tip_seen": bool(rep_sum.get("rep_tip_seen", False)),
                             "rep_bad_seen": bool(rep_sum.get("rep_bad_seen", False)),

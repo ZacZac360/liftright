@@ -413,6 +413,29 @@ a {
   }
 }
 
+.lr-attribution {
+  position: fixed;
+  bottom: 12px;
+  left: 16px;
+  z-index: 9999;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 1;
+  color: rgba(255,255,255,0.82);
+  background: rgba(0,0,0,0.22);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.lr-attribution a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.lr-attribution a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 900px) {
   .lr-hero__visual {
     display: none;
@@ -426,13 +449,5 @@ a {
 
   .lr-copy__actions {
     margin-top: 24px;
-  }
-
-  .lr-attribution {
-    position: absolute;
-    bottom: 10px;
-    left: 16px;
-    font-size: 0.65rem;
-    opacity: 0.5;
   }
 }

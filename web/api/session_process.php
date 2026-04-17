@@ -332,8 +332,13 @@ if ($action === 'finish') {
         if ($rep_index <= 0) continue;
 
         $duration      = (int)($r['duration_ms'] ?? 0);
-        $rom           = (float)($r['rom_score'] ?? 0.0);
-        $sway          = (float)($r['trunk_sway'] ?? 0.0);
+        $rom           = (float)($r['rom_score'] ?? 0.0)  ;
+        $sway = (float)(
+          $r['trunk_sway']
+          ?? $r['trunk_absmax']
+          ?? (($r['meta']['trunk_absmax'] ?? null))
+          ?? 0.0
+        );
         $conf          = (float)($r['confidence_avg'] ?? 0.0);
         $label         = (string)($r['form_label'] ?? 'unknown');
         $score         = (float)($r['anomaly_score'] ?? 0.0);

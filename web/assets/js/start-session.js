@@ -96,13 +96,22 @@
   /* =========================
      PERFORMANCE TUNING
   ========================= */
-  const MAX_INFLIGHT = 3;                // push harder; try 2 first if 3 gets unstable
+  let dynamicMaxInflight = 2;            // adaptive: 1 on bad network, 3 on good network
+  let avgResponseMs = 160;               // rolling average of frame-loop response
   const FRAME_JPEG_QUALITY = 0.28;       // lower payload size
   const FRAME_TARGET_WIDTH = 512;        // smaller frame sent to server
   let inflightCount = 0;
 
   let screenshotBusy = false;
   const screenshotQueue = [];
+
+  function updateDynamicInflight(responseMs) {
+    avgResponseMs = (avgResponseMs * 0.85) + (responseMs * 0.15);
+
+    if (avgResponseMs > 260) dynamicMaxInflight = 1;
+    else if (avgResponseMs > 140) dynamicMaxInflight = 2;
+    else dynamicMaxInflight = 3;
+  }
 
 /* =========================
    SFX SYSTEM
@@ -660,7 +669,7 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
      MAIN SESSION LOOP (/frame)
   ========================= */
   async function tick() {
-    if (!running || inflightCount >= MAX_INFLIGHT) return;
+    if (!running || inflightCount >= dynamicMaxInflight) return;
     if (!video.videoWidth || !video.videoHeight) return;
 
     inflightCount++;
@@ -688,7 +697,17 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
       const responseMs = requestEnd - requestStart;
       perfResponseSamples.push(responseMs);
 
-      console.log("[LiftRight Metrics] Response time (frame loop):", responseMs.toFixed(2), "ms");
+      updateDynamicInflight(responseMs);
+
+      console.log(
+        "[LiftRight Metrics] Response time (frame loop):",
+        responseMs.toFixed(2),
+        "ms | adaptive inflight:",
+        dynamicMaxInflight,
+        "| avg:",
+        avgResponseMs.toFixed(2),
+        "ms"
+      );
 
       if (resp.status && typeof resp.status.ml_processing_ms === "number") {
         perfMlSamples.push(resp.status.ml_processing_ms);
@@ -869,6 +888,8 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
     prevStateLower = "";
     prevPhaseRaw = "";
     repScreenshotPriority.clear();
+    dynamicMaxInflight = 2;
+    avgResponseMs = 160;
 
     lastKnownPhase = "raise";
     stickyPhrase = "";
@@ -917,6 +938,8 @@ async function saveRepScreenshotIfBetter(repIndex, level) {
       prevStateLower = "";
       prevPhaseRaw = "";
       repScreenshotPriority.clear();
+      dynamicMaxInflight = 2;
+      avgResponseMs = 160;
       if (uiLogIdMain) uiLogIdMain.textContent = "—";
       if (uiLogIdSide) uiLogIdSide.textContent = "—";
       if (idleOverlay) idleOverlay.style.display = "flex";
