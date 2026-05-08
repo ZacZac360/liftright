@@ -1,0 +1,45 @@
+Column,Action,Output / Reason
+Timestamp,SKIPPED,Timestamp column
+I hereby confirm that I am 18 years of age or older and voluntarily agree to participate in this study.  ,PIE,Q01_I_hereby_confirm_that_I_am_18_years_of_age_or_older_and_voluntarily_agree_to_par_pie.png
+"I have read and understood the data privacy statement, including the provisions of RA 10173, and I consent to participate in this survey.",PIE,"Q02_I_have_read_and_understood_the_data_privacy_statement,_including_the_provisions__pie.png"
+1. How would you describe your weightlifting experience? ,PIE,Q03_1._How_would_you_describe_your_weightlifting_experience_pie.png
+2. Have you previously used any form of posture correction assistance?  ,PIE,Q04_2._Have_you_previously_used_any_form_of_posture_correction_assistance_pie.png
+Bicep Curl [The system accurately detected my posture errors.],BAR,Q05_Bicep_Curl_[The_system_accurately_detected_my_posture_errors.]_bar.png
+Bicep Curl [The feedback was clear and helpful.],BAR,Q06_Bicep_Curl_[The_feedback_was_clear_and_helpful.]_bar.png
+Bicep Curl [The system responded quickly and reliably.],BAR,Q07_Bicep_Curl_[The_system_responded_quickly_and_reliably.]_bar.png
+Bicep Curl [I trust the feedback and feel more confident using it.],BAR,Q08_Bicep_Curl_[I_trust_the_feedback_and_feel_more_confident_using_it.]_bar.png
+Bicep Curl [The feedback did not distract me during the exercise.],BAR,Q09_Bicep_Curl_[The_feedback_did_not_distract_me_during_the_exercise.]_bar.png
+Shoulder Press [The system accurately detected my posture errors.],BAR,Q10_Shoulder_Press_[The_system_accurately_detected_my_posture_errors.]_bar.png
+Shoulder Press [The feedback was clear and helpful.],BAR,Q11_Shoulder_Press_[The_feedback_was_clear_and_helpful.]_bar.png
+Shoulder Press [The system responded quickly and reliably.],BAR,Q12_Shoulder_Press_[The_system_responded_quickly_and_reliably.]_bar.png
+Shoulder Press [I trust the feedback and feel more confident using it.],BAR,Q13_Shoulder_Press_[I_trust_the_feedback_and_feel_more_confident_using_it.]_bar.png
+Shoulder Press [The feedback did not distract me during the exercise.],BAR,Q14_Shoulder_Press_[The_feedback_did_not_distract_me_during_the_exercise.]_bar.png
+Lateral Raise [The system accurately detected my posture errors.],BAR,Q15_Lateral_Raise_[The_system_accurately_detected_my_posture_errors.]_bar.png
+Lateral Raise [The feedback was clear and helpful.],BAR,Q16_Lateral_Raise_[The_feedback_was_clear_and_helpful.]_bar.png
+Lateral Raise [The system responded quickly and reliably.],BAR,Q17_Lateral_Raise_[The_system_responded_quickly_and_reliably.]_bar.png
+Lateral Raise [I trust the feedback and feel more confident using it.],BAR,Q18_Lateral_Raise_[I_trust_the_feedback_and_feel_more_confident_using_it.]_bar.png
+Lateral Raise [The feedback did not distract me during the exercise.],BAR,Q19_Lateral_Raise_[The_feedback_did_not_distract_me_during_the_exercise.]_bar.png
+Was LiftRight able to adjust its feedback according to your level of feedback? [The system continued to provide accurate feedback as I became more fatigued.],BAR,Q20_Was_LiftRight_able_to_adjust_its_feedback_according_to_your_level_of_feedback_[T_bar.png
+Was LiftRight able to adjust its feedback according to your level of feedback? [The feedback reflected changes in my posture during later repetitions.],BAR,Q21_Was_LiftRight_able_to_adjust_its_feedback_according_to_your_level_of_feedback_[T_bar.png
+Was LiftRight able to adjust its feedback according to your level of feedback? [The system helped me maintain proper form when I was getting tired.],BAR,Q22_Was_LiftRight_able_to_adjust_its_feedback_according_to_your_level_of_feedback_[T_bar.png
+Usability [The dashboard was easy to navigate.],BAR,Q23_Usability_[The_dashboard_was_easy_to_navigate.]_bar.png
+Usability [The layout of the dashboard was clear and organized.],BAR,Q24_Usability_[The_layout_of_the_dashboard_was_clear_and_organized.]_bar.png
+Usability [I was able to understand my performance results easily.],BAR,Q25_Usability_[I_was_able_to_understand_my_performance_results_easily.]_bar.png
+Usability [The information displayed was useful.],BAR,Q26_Usability_[The_information_displayed_was_useful.]_bar.png
+Learnability & Usefulness  [I could use the system without needing assistance.],BAR,Q27_Learnability_&_Usefulness_[I_could_use_the_system_without_needing_assistance.]_bar.png
+Learnability & Usefulness  [The dashboard helped me identify my posture mistakes.],BAR,Q28_Learnability_&_Usefulness_[The_dashboard_helped_me_identify_my_posture_mistakes._bar.png
+Learnability & Usefulness  [The system motivated me to improve my lifting form.],BAR,Q29_Learnability_&_Usefulness_[The_system_motivated_me_to_improve_my_lifting_form.]_bar.png
+Learnability & Usefulness  [I would use this system during future workouts.],BAR,Q30_Learnability_&_Usefulness_[I_would_use_this_system_during_future_workouts.]_bar.png
+ [I think that I would like to use this system frequently.],BAR,Q31_[I_think_that_I_would_like_to_use_this_system_frequently.]_bar.png
+ [I found the system unnecessarily complex.],BAR,Q32_[I_found_the_system_unnecessarily_complex.]_bar.png
+ [I thought the system was easy to use.],BAR,Q33_[I_thought_the_system_was_easy_to_use.]_bar.png
+ [I think that I would need the support of a technical person to use this system.],BAR,Q34_[I_think_that_I_would_need_the_support_of_a_technical_person_to_use_this_system._bar.png
+ [I found the various functions in this system were well integrated.],BAR,Q35_[I_found_the_various_functions_in_this_system_were_well_integrated.]_bar.png
+ [I thought there was too much inconsistency in this system.],BAR,Q36_[I_thought_there_was_too_much_inconsistency_in_this_system.]_bar.png
+ [I would imagine that most people would learn to use this system very quickly.],BAR,Q37_[I_would_imagine_that_most_people_would_learn_to_use_this_system_very_quickly.]_bar.png
+ [I found the system very cumbersome to use.],BAR,Q38_[I_found_the_system_very_cumbersome_to_use.]_bar.png
+ [I felt very confident using the system.],BAR,Q39_[I_felt_very_confident_using_the_system.]_bar.png
+ [I needed to learn a lot of things before I could get going with this system.],BAR,Q40_[I_needed_to_learn_a_lot_of_things_before_I_could_get_going_with_this_system.]_bar.png
+What did you like most about using the system?  ,SKIPPED,Open-ended text
+What improvements would you suggest for future versions? ,SKIPPED,Open-ended text
+"Did you notice any inaccuracies in the posture detection? If yes, please describe.",SKIPPED,Open-ended text

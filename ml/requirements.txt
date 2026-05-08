@@ -1,0 +1,46 @@
+# ============================================================
+# LiftRight ML / Realtime Server Dependencies
+# Python version: 3.10
+# For local testing and installation
+# ============================================================
+
+# -------------------------
+# FastAPI server
+# -------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-multipart==0.0.20
+starlette==0.41.3
+
+# -------------------------
+# Computer vision / pose estimation
+# -------------------------
+opencv-python==4.10.0.84
+mediapipe==0.10.21
+
+# -------------------------
+# Machine learning / model loading
+# -------------------------
+scikit-learn==1.5.2
+joblib==1.4.2
+scipy==1.14.1
+threadpoolctl==3.5.0
+
+# -------------------------
+# Numeric processing
+# -------------------------
+numpy==1.26.4
+
+# -------------------------
+# Local testing helpers
+# -------------------------
+requests==2.32.3
+python-dotenv==1.0.1
+
+# -------------------------
+# Optional debugging / notebooks / charts
+# Useful if testing model outputs locally
+# -------------------------
+pandas==2.2.3
+matplotlib==3.9.2

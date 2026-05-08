@@ -1,0 +1,21 @@
+Column,Action,Output / Reason
+Timestamp,SKIPPED,Timestamp column
+"I have read and understood the data privacy statement, including the provisions of RA 10173, and I consent to participate in this survey.",PIE,"Q01_I_have_read_and_understood_the_data_privacy_statement,_including_the_provisions__pie.png"
+1. How long have you been in the industry?,PIE,Q02_1._How_long_have_you_been_in_the_industry_pie.png
+2. What is your primary role in the industry?,PIE,Q03_2._What_is_your_primary_role_in_the_industry_pie.png
+3. What industry do you work in?,PIE,Q04_3._What_industry_do_you_work_in_pie.png
+"If you are a Professor, what do you practice?",PIE,"Q05_If_you_are_a_Professor,_what_do_you_practice_pie.png"
+Answer each question below: [The interface layout of the web application is clear and well organized.],BAR,Q06_Answer_each_question_below_[The_interface_layout_of_the_web_application_is_clear_bar.png
+"Answer each question below: [The visual design (colors, typography, and elements) is consistent throughout the system.]",BAR,"Q07_Answer_each_question_below_[The_visual_design_(colors,_typography,_and_elements)_bar.png"
+"Answer each question below: [The interface design supports easy understanding of the exercise features (lateral raise, bicep curl, shoulder press).]",BAR,Q08_Answer_each_question_below_[The_interface_design_supports_easy_understanding_of__bar.png
+Answer each question below: [The navigation within the system is intuitive and easy to follow.],BAR,Q09_Answer_each_question_below_[The_navigation_within_the_system_is_intuitive_and_ea_bar.png
+Answer each question below: [The instructions provided by the system are clear and easy to understand.],BAR,Q10_Answer_each_question_below_[The_instructions_provided_by_the_system_are_clear_an_bar.png
+Answer each question below: [Users can easily understand how to start and perform an exercise using the system.],BAR,Q11_Answer_each_question_below_[Users_can_easily_understand_how_to_start_and_perform_bar.png
+Answer each question below: [The system responds smoothly when detecting and analyzing exercise movements.],BAR,Q12_Answer_each_question_below_[The_system_responds_smoothly_when_detecting_and_anal_bar.png
+Answer each question below: [The feedback provided by the system helps users understand how to improve their exercise form.],BAR,Q13_Answer_each_question_below_[The_feedback_provided_by_the_system_helps_users_unde_bar.png
+Answer each question below: [The system performs reliably during the exercise detection process.],BAR,Q14_Answer_each_question_below_[The_system_performs_reliably_during_the_exercise_det_bar.png
+Answer each question below: [The web application provides a positive user experience.],BAR,Q15_Answer_each_question_below_[The_web_application_provides_a_positive_user_experie_bar.png
+Answer each question below: [The system effectively integrates exercise tracking with an accessible web interface.],BAR,Q16_Answer_each_question_below_[The_system_effectively_integrates_exercise_tracking__bar.png
+Answer each question below: [I would recommend improvements to this system before public deployment.],BAR,Q17_Answer_each_question_below_[I_would_recommend_improvements_to_this_system_before_bar.png
+What did you like most about using the system?  ,PIE,Q18_What_did_you_like_most_about_using_the_system_pie.png
+What improvements would you recommend for the user interface or user experience of this system? ,PIE,Q19_What_improvements_would_you_recommend_for_the_user_interface_or_user_experience__pie.png

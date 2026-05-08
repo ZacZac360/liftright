@@ -54,16 +54,17 @@ SMOOTH_N = 7
 MIN_REP_TIME = 0.35
 
 FATIGUE_WINDOW = 6
-CALIB_REPS = 5
+CALIB_REPS = 3
 
 # ML softness (rolling baseline)
 ML_SCORE_WINDOW = 8
 ML_REL_DROP = 0.020
 ML_MIN_SCORES_FOR_REL = 4
 
-FATIGUE_WARN_INDEX = 55
-FATIGUE_STOP_INDEX = 80
-FATIGUE_STOP_STREAK = 2
+FATIGUE_WARN_INDEX = 30
+FATIGUE_STOP_INDEX = 55
+FATIGUE_STOP_STREAK = 1
+FATIGUE_GAMMA = 1.6
 
 GOOD_COLOR = (0, 255, 0)
 WARN_COLOR = (0, 255, 255)
@@ -192,7 +193,7 @@ def fatigue_level_from_index(idx: float) -> str:
         return "high"
     if idx >= FATIGUE_WARN_INDEX:
         return "moderate"
-    if idx >= 15.0:
+    if idx >= 12.0:
         return "low"
     return "none"
 
@@ -271,19 +272,19 @@ def fatigue_index_bc(baseline, rom_med, dur_med, drift_med, trunk_med):
     drift_delta = drift_med - baseline["drift"]
     trunk_delta = trunk_med - baseline["trunk"]
 
-    # Trigger earlier when ROM starts falling
-    c_rom = np.clip((0.85 - rom_ratio) / 0.35, 0.0, 1.0)
+    # Trigger sooner when ROM starts dropping
+    c_rom = np.clip((0.92 - rom_ratio) / 0.26, 0.0, 1.0)
 
-    # Trigger earlier when reps start slowing down
-    c_dur = np.clip((dur_ratio - 1.05) / 0.55, 0.0, 1.0)
+    # Trigger sooner when reps slow down
+    c_dur = np.clip((dur_ratio - 0.98) / 0.40, 0.0, 1.0)
 
-    # Elbow drift still matters
-    c_drift = np.clip(drift_delta / 0.18, 0.0, 1.0)
+    # Keep drift meaningful, but softer than ROM/duration
+    c_drift = np.clip(drift_delta / 0.15, 0.0, 1.0)
 
-    # Trunk sway / torso instability now matters too
-    c_trunk = np.clip(trunk_delta / 0.12, 0.0, 1.0)
+    # Keep trunk meaningful, but softer than ROM/duration
+    c_trunk = np.clip(trunk_delta / 0.09, 0.0, 1.0)
 
-    idx = (0.32 * c_rom + 0.28 * c_dur + 0.20 * c_drift + 0.20 * c_trunk) * 100.0
+    idx = (0.42 * c_rom + 0.33 * c_dur + 0.13 * c_drift + 0.12 * c_trunk) * 100.0
     comps = dict(
         rom_ratio=float(rom_ratio),
         dur_ratio=float(dur_ratio),
@@ -301,11 +302,11 @@ def fatigue_index_sp(baseline, range_med, dur_med, stack_med):
     dur_ratio = safe_div(dur_med, baseline["duration"])
     stack_delta = stack_med - baseline["stack"]
 
-    c_range = np.clip((0.70 - range_ratio) / 0.70, 0.0, 1.0)
-    c_dur   = np.clip((dur_ratio - 1.25) / 1.25, 0.0, 1.0)
-    c_stack = np.clip(stack_delta / 0.20, 0.0, 1.0)
+    c_range = np.clip((0.90 - range_ratio) / 0.28, 0.0, 1.0)
+    c_dur   = np.clip((dur_ratio - 1.00) / 0.42, 0.0, 1.0)
+    c_stack = np.clip(stack_delta / 0.14, 0.0, 1.0)
 
-    idx = (0.45 * c_range + 0.25 * c_dur + 0.30 * c_stack) * 100.0
+    idx = (0.42 * c_range + 0.33 * c_dur + 0.25 * c_stack) * 100.0
     comps = dict(range_ratio=float(range_ratio), dur_ratio=float(dur_ratio), stack_delta=float(stack_delta),
                  c_range=float(c_range), c_dur=float(c_dur), c_stack=float(c_stack))
     return float(idx), comps
@@ -315,11 +316,11 @@ def fatigue_index_lr(baseline, range_med, dur_med, elbow_med):
     dur_ratio   = safe_div(dur_med, baseline["duration"])
     elbow_delta = baseline["elbow"] - elbow_med
 
-    c_range = np.clip((0.70 - range_ratio) / 0.70, 0.0, 1.0)
-    c_dur   = np.clip((dur_ratio - 1.25) / 1.25, 0.0, 1.0)
-    c_elbow = np.clip(elbow_delta / 25.0, 0.0, 1.0)
+    c_range = np.clip((0.90 - range_ratio) / 0.28, 0.0, 1.0)
+    c_dur   = np.clip((dur_ratio - 1.00) / 0.42, 0.0, 1.0)
+    c_elbow = np.clip(elbow_delta / 15.0, 0.0, 1.0)
 
-    idx = (0.45 * c_range + 0.25 * c_dur + 0.30 * c_elbow) * 100.0
+    idx = (0.42 * c_range + 0.33 * c_dur + 0.25 * c_elbow) * 100.0
     comps = dict(range_ratio=float(range_ratio), dur_ratio=float(dur_ratio), elbow_delta=float(elbow_delta),
                  c_range=float(c_range), c_dur=float(c_dur), c_elbow=float(c_elbow))
     return float(idx), comps
@@ -1067,12 +1068,12 @@ class BicepCurlPipeline:
                     sess.fatigue_text = ""
                     sess.fatigue_details = {}
 
-                    if sess.baseline_ready and len(sess.recent) >= 4:
-                        last3 = list(sess.recent)[-3:]
-                        rom_med = median_or([r["rom"] for r in last3], sess.baseline["rom"])
-                        dur_med = median_or([r["duration"] for r in last3], sess.baseline["duration"])
-                        drift_med = median_or([r["drift"] for r in last3], sess.baseline["drift"])
-                        trunk_med = median_or([r["trunk"] for r in last3], sess.baseline["trunk"])
+                    if sess.baseline_ready and len(sess.recent) >= 1:
+                        last = sess.recent[-1]
+                        rom_med = float(last["rom"])
+                        dur_med = float(last["duration"])
+                        drift_med = float(last["drift"])
+                        trunk_med = float(last["trunk"])
 
                         sess.fatigue_index, comps = fatigue_index_bc(
                             sess.baseline, rom_med, dur_med, drift_med, trunk_med
@@ -1200,14 +1201,18 @@ class BicepCurlPipeline:
                         (sess.fatigue_level in ("moderate", "high")) or
                         (
                             sess.fatigue_level == "low" and
-                            sess.fatigue_trend in ("rising", "sharply_rising") and
+                            (
+                                sess.fatigue_trend in ("rising", "sharply_rising") or
+                                sess.fatigue_index >= 25.0
+                            ) and
                             any(
                                 x in reasons for x in [
                                     "High fatigue - stop the set or reduce load",
                                     "Fatigue rising - prioritize control and consider rest",
                                     "Early fatigue signs - keep elbows steady and control the rep",
                                     "ROM is dropping - lighten weight or rest",
-                                    "Tempo slowing - stay controlled"
+                                    "Tempo slowing - stay controlled",
+                                    "Torso sway increasing - stay upright and controlled"
                                 ]
                             )
                         )
@@ -1530,11 +1535,11 @@ class ShoulderPressPipeline:
                             sess.baseline_ready = True
 
                     comps = {}
-                    if sess.baseline_ready and len(sess.recent) >= 4:
-                        last3 = list(sess.recent)[-3:]
-                        range_med = median_or([r["range"] for r in last3], sess.baseline["range"])
-                        dur_med   = median_or([r["duration"] for r in last3], sess.baseline["duration"])
-                        stack_med = median_or([r["stack"] for r in last3], sess.baseline["stack"])
+                    if sess.baseline_ready and len(sess.recent) >= 1:
+                        last = sess.recent[-1]
+                        range_med = float(last["range"])
+                        dur_med   = float(last["duration"])
+                        stack_med = float(last["stack"])
 
                         sess.fatigue_index, comps = fatigue_index_sp(
                             sess.baseline, range_med, dur_med, stack_med
@@ -1632,14 +1637,18 @@ class ShoulderPressPipeline:
                         (sess.fatigue_level in ("moderate", "high")) or
                         (
                             sess.fatigue_level == "low" and
-                            sess.fatigue_trend in ("rising", "sharply_rising") and
+                            (
+                                sess.fatigue_trend in ("rising", "sharply_rising") or
+                                sess.fatigue_index >= 25.0
+                            ) and
                             any(
                                 x in reasons for x in [
                                     "High fatigue - stop the set or reduce load",
                                     "Fatigue rising - prioritize control and consider rest",
-                                    "Early fatigue signs - keep your press controlled",
+                                    "Early fatigue signs - keep the raise controlled",
                                     "Range dropping - lighten weight or rest",
-                                    "Tempo slowing - stay controlled"
+                                    "Tempo slowing - stay controlled",
+                                    "Arms bending more - avoid upright-row motion"
                                 ]
                             )
                         )
@@ -2041,11 +2050,11 @@ class LateralRaisePipeline:
                             sess.baseline_ready = True
 
                     comps = {}
-                    if sess.baseline_ready and len(sess.recent) >= 4:
-                        last3 = list(sess.recent)[-3:]
-                        range_med = median_or([r["range"] for r in last3], sess.baseline["range"])
-                        dur_med   = median_or([r["duration"] for r in last3], sess.baseline["duration"])
-                        elbow_med = median_or([r["elbow"] for r in last3], sess.baseline["elbow"])
+                    if sess.baseline_ready and len(sess.recent) >= 1:
+                        last = sess.recent[-1]
+                        range_med = float(last["range"])
+                        dur_med   = float(last["duration"])
+                        elbow_med = float(last["elbow"])
 
                         sess.fatigue_index, comps = fatigue_index_lr(
                             sess.baseline, range_med, dur_med, elbow_med
